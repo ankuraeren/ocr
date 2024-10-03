@@ -78,6 +78,7 @@ def upload_parsers_to_github():
             content = base64.b64encode(f.read()).decode('utf-8')
 
         current_sha = get_current_sha()
+
         if not current_sha:
             return
 
@@ -373,7 +374,6 @@ def run_parser(parsers):
             if success_extra:
                 try:
                     response_json_extra = response_extra.json()
-                    col1, col2 = st.columns(2)
                     with col1:
                         with st.expander("Results with Extra Accuracy"):
                             st.json(response_json_extra)
@@ -393,7 +393,6 @@ def run_parser(parsers):
             if success_no_extra:
                 try:
                     response_json_no_extra = response_no_extra.json()
-                    with st.container():
                     with col2:
                         with st.expander("Results without Extra Accuracy"):
                             st.json(response_json_no_extra)
@@ -402,11 +401,12 @@ def run_parser(parsers):
                     logging.error("Failed to parse JSON response without Extra Accuracy.")
                     with col2:
                         st.error("Failed to parse JSON response without Extra Accuracy.")
-                        logging.error("Failed to parse JSON response without Extra Accuracy.")
+                        logging.error("Failed to parse JSON response without Extra Accuracy.") 
             else:
                 with col2:
                     st.error("Request without Extra Accuracy failed.")
                     logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
+
             # Comparison Table
             st.subheader("Comparison of OCR Results")
             if success_extra and success_no_extra:
@@ -432,8 +432,6 @@ def run_parser(parsers):
                 else:
                     st.info("No common fields to compare in the OCR results.")
             else:
-                st.error("Request without Extra Accuracy failed.")
-                logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
                 st.error("Cannot compare results as one or both OCR requests failed.")
 
             if success_extra and success_no_extra:
