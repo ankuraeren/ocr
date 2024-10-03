@@ -18,7 +18,6 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 GITHUB_REPO = 'ankuraeren/ocr'
 GITHUB_BRANCH = 'main'  # Define the branch
 GITHUB_FILE_PATH = 'parsers.json'
-GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}'
 GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}?ref={GITHUB_BRANCH}'
 
 # Access GitHub Access Token securely from secrets
@@ -90,8 +89,7 @@ def upload_parsers_to_github():
             'message': 'Update parsers.json file',
             'content': content,
             'sha': current_sha,
-            'branch': 'main'
-            'branch': GITHUB_BRANCH
+            'branch': GITHUB_BRANCH  # Corrected: Removed duplicate 'branch' key
         }
 
         response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
@@ -198,7 +196,7 @@ def add_new_parser():
                 }
                 save_parsers()
                 st.success("The parser has been added successfully.")
-                st.experimental_set_query_params(refresh='true')
+                st.experimental_rerun()  # Changed to rerun for immediate update
 
 def list_parsers():
     st.subheader("List of All Parsers")
@@ -226,11 +224,12 @@ def list_parsers():
             else:
                 st.write("N/A")
 
+            # Use a unique key for each delete button to prevent conflicts
             if st.button(f"Delete {parser_name}", key=f"delete_{parser_name}"):
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
-                st.experimental_set_query_params(refresh='true')
+                st.experimental_rerun()  # Changed to rerun for immediate update
 
 def run_parser(parsers):
     st.subheader("Run OCR Parser")
@@ -253,7 +252,11 @@ def run_parser(parsers):
     temp_dirs = []
 
     if input_method == "Upload Image File":
-        uploaded_files = st.file_uploader("Choose image(s)...", type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Choose image(s)...",
+            type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"],
+            accept_multiple_files=True
+        )
         if uploaded_files:
             for uploaded_file in uploaded_files:
                 try:
