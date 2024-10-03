@@ -3,165 +3,101 @@ import streamlit as st
 import requests
 import os
 import json
+import re
 from PIL import Image
 from io import BytesIO
+import matplotlib.pyplot as plt
 import shutil
 import tempfile
 import logging
-import base64
-import time  # For tracking time
+import gdown
+import time  # New import for tracking time
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-# GitHub Configuration
-GITHUB_REPO = 'ankuraeren/ocr'
-GITHUB_BRANCH = 'main'  # Define the branch
-GITHUB_FILE_PATH = 'parsers.json'
-GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}?ref={GITHUB_BRANCH}'
+# Define the Google Drive file ID (extract from your shareable link)
+GDRIVE_FILE_ID = '1bCVInNOQxx4sP2kZbCuO65RfKQ-mqq1u'  # Replace with your actual file ID
+GDRIVE_DOWNLOAD_URL = f'https://drive.google.com/uc?id={GDRIVE_FILE_ID}'
 
-# Access GitHub Access Token securely from Streamlit secrets
-GITHUB_ACCESS_TOKEN = st.secrets["github"]["access_token"]
+# Define local parsers file path
+LOCAL_PARSERS_FILE = 'parsers.json'
 
 # API Configuration
 API_ENDPOINT = 'https://prod-ml.fracto.tech/upload-file-smart-ocr'
-
-# Define local parsers file path using a temporary directory
-LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
 
 # Initialize parsers dictionary in session state
 if 'parsers' not in st.session_state:
     st.session_state['parsers'] = {}
 
-def download_parsers_from_github():
-    headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
-    try:
-        response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
-        response.raise_for_status()  # Raises HTTPError for bad responses
+def authenticate_drive():
+    """
+    Authenticate and create a GoogleDrive object using PyDrive.
+    """
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()  # Automatically handles authentication
+    return GoogleDrive(gauth)
 
-        content = response.json().get('content')
-        if content:
-            with open(LOCAL_PARSERS_FILE, 'wb') as f:
-                f.write(base64.b64decode(content))
-            load_parsers()
-            st.success("`parsers.json` downloaded successfully from GitHub.")
-            logging.info("`parsers.json` downloaded successfully from GitHub.")
-        else:
-            st.error("`parsers.json` content is empty.")
-            logging.error("`parsers.json` content is empty.")
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"HTTP error occurred while downloading `parsers.json`: {http_err}")
-        logging.error(f"HTTP error occurred while downloading `parsers.json`: {http_err}")
-    except requests.exceptions.ConnectionError as conn_err:
-        st.error(f"Connection error occurred while downloading `parsers.json`: {conn_err}")
-        logging.error(f"Connection error occurred while downloading `parsers.json`: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        st.error(f"Timeout error occurred while downloading `parsers.json`: {timeout_err}")
-        logging.error(f"Timeout error occurred while downloading `parsers.json`: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        st.error(f"An error occurred while downloading `parsers.json`: {req_err}")
-        logging.error(f"An error occurred while downloading `parsers.json`: {req_err}")
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
-        logging.error(f"Unexpected error: {e}")
+def upload_parsers_to_drive(local_file_path, drive_file_id):
+    """
+    Upload the updated parsers.json to Google Drive, replacing the existing file.
+    """
+    drive = authenticate_drive()
 
-def get_current_sha():
-    headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
-    try:
-        response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
-        response.raise_for_status()
-        sha = response.json().get('sha')
-        if sha:
-            return sha
-        else:
-            st.error("SHA not found for `parsers.json` in GitHub.")
-            logging.error("SHA not found for `parsers.json` in GitHub.")
-            return None
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"HTTP error occurred while fetching SHA: {http_err}")
-        logging.error(f"HTTP error occurred while fetching SHA: {http_err}")
-    except requests.exceptions.ConnectionError as conn_err:
-        st.error(f"Connection error occurred while fetching SHA: {conn_err}")
-        logging.error(f"Connection error occurred while fetching SHA: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        st.error(f"Timeout error occurred while fetching SHA: {timeout_err}")
-        logging.error(f"Timeout error occurred while fetching SHA: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        st.error(f"An error occurred while fetching SHA: {req_err}")
-        logging.error(f"An error occurred while fetching SHA: {req_err}")
-    except Exception as e:
-        st.error(f"Unexpected error while fetching SHA: {e}")
-        logging.error(f"Unexpected error while fetching SHA: {e}")
-    return None
+    # Load the file on Google Drive using its file ID
+    file = drive.CreateFile({'id': drive_file_id})
 
-def upload_parsers_to_github():
-    try:
-        if not os.path.exists(LOCAL_PARSERS_FILE):
-            st.error("`parsers.json` file not found locally. Please download it first.")
-            logging.error("`parsers.json` file not found locally.")
-            return
+    # Set the content of the file from the local parsers.json
+    file.SetContentFile(local_file_path)
+    
+    # Upload the file to Google Drive, overwriting the existing one
+    file.Upload()
+    st.success("parsers.json has been successfully uploaded to Google Drive.")
 
-        with open(LOCAL_PARSERS_FILE, 'rb') as f:
-            content = base64.b64encode(f.read()).decode('utf-8')
+# After modifying the parsers.json locally, call this function to upload:
+def save_and_upload_parsers():
+    """
+    Saves the parsers to the local parsers.json file and uploads it back to Google Drive.
+    """
+    save_parsers()  # Save locally first
+    upload_parsers_to_drive(LOCAL_PARSERS_FILE, GDRIVE_FILE_ID)
 
-        current_sha = get_current_sha()
-        if not current_sha:
-            return
-
-        headers = {
-            'Authorization': f'token {GITHUB_ACCESS_TOKEN}',
-            'Content-Type': 'application/json'
-        }
-        payload = {
-            'message': 'Update parsers.json file',
-            'content': content,
-            'sha': current_sha,
-            'branch': GITHUB_BRANCH
-        }
-
-        response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
-
-        if response.status_code in [200, 201]:
-            st.success("`parsers.json` uploaded successfully to GitHub.")
-            logging.info("`parsers.json` uploaded successfully to GitHub.")
-        else:
-            error_message = response.json().get('message', 'Unknown error')
-            st.error(f"Failed to upload `parsers.json` to GitHub: {error_message}")
-            logging.error(f"Failed to upload `parsers.json` to GitHub: {error_message}")
-    except FileNotFoundError:
-        st.error("`parsers.json` file not found locally. Please download it first.")
-        logging.error("`parsers.json` file not found locally.")
-    except Exception as e:
-        st.error(f"An unexpected error occurred during upload: {e}")
-        logging.error(f"An unexpected error occurred during upload: {e}")
+def download_parsers_from_drive():
+    if not os.path.exists(LOCAL_PARSERS_FILE):
+        logging.info("Downloading parsers.json from Google Drive...")
+        try:
+            gdown.download(GDRIVE_DOWNLOAD_URL, LOCAL_PARSERS_FILE, quiet=False)
+            logging.info("Download completed.")
+            st.success("parsers.json downloaded successfully.")
+        except Exception as e:
+            logging.error(f"Failed to download parsers.json: {e}")
+            st.error("Failed to download parsers.json from Google Drive.")
+    else:
+        logging.info("parsers.json already exists locally.")
+        st.info("parsers.json already exists locally.")
 
 def load_parsers():
     if os.path.exists(LOCAL_PARSERS_FILE):
-        try:
-            with open(LOCAL_PARSERS_FILE, 'r') as f:
+        with open(LOCAL_PARSERS_FILE, 'r') as f:
+            try:
                 st.session_state['parsers'] = json.load(f)
-            logging.info("Parsers loaded successfully.")
-            st.success("parsers.json loaded successfully.")
-        except json.JSONDecodeError:
-            logging.error("parsers.json is not a valid JSON file.")
-            st.error("parsers.json is corrupted or not in valid JSON format.")
-        except Exception as e:
-            logging.error(f"Unexpected error while loading parsers.json: {e}")
-            st.error(f"Unexpected error while loading parsers.json: {e}")
+                logging.info("Parsers loaded successfully.")
+                st.success("parsers.json loaded successfully.")
+            except json.JSONDecodeError:
+                logging.error("parsers.json is not a valid JSON file.")
+                st.error("parsers.json is corrupted or not in valid JSON format.")
     else:
         st.session_state['parsers'] = {}
         logging.info("parsers.json not found. Starting with an empty parsers dictionary.")
         st.info("parsers.json not found. Starting with an empty parsers dictionary.")
 
 def save_parsers():
-    try:
-        with open(LOCAL_PARSERS_FILE, 'w') as f:
-            json.dump(st.session_state['parsers'], f, indent=4)
-        st.success("parsers.json has been updated locally. Please upload it back to GitHub.")
-        logging.info("parsers.json has been updated locally.")
-    except Exception as e:
-        st.error(f"Failed to save parsers.json locally: {e}")
-        logging.error(f"Failed to save parsers.json locally: {e}")
+    with open(LOCAL_PARSERS_FILE, 'w') as f:
+        json.dump(st.session_state['parsers'], f, indent=4)
+    logging.info("parsers.json updated successfully.")
+    st.success("parsers.json has been updated locally. Please upload it back to Google Drive manually.")
 
 def add_new_parser():
     st.subheader("Add a New Parser")
@@ -245,9 +181,8 @@ def run_parser(parsers):
 
     input_method = st.radio("Choose Input Method", ("Upload Image File", "Enter Image URL"))
 
-    image_paths = []
-    images = []
-    temp_dirs = []
+    images = []  
+    temp_dirs = []  
 
     if input_method == "Upload Image File":
         uploaded_files = st.file_uploader("Choose image(s)...", type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"], accept_multiple_files=True)
@@ -261,7 +196,6 @@ def run_parser(parsers):
                     temp_dirs.append(temp_dir)
                     image_path = os.path.join(temp_dir, uploaded_file.name)
                     image.save(image_path)
-                    image_paths.append(image_path)
                 except Exception as e:
                     st.error(f"Error processing file {uploaded_file.name}: {e}")
                     logging.error(f"Error processing file {uploaded_file.name}: {e}")
@@ -275,15 +209,13 @@ def run_parser(parsers):
                     if response.status_code == 200:
                         image = Image.open(BytesIO(response.content))
                         images.append(image)
-                        image_caption = os.path.basename(url.split('?')[0]) or "Image"
-                        st.image(image, caption=image_caption, use_column_width=True)
+                        st.image(image, caption=os.path.basename(url.split('?')[0]), use_column_width=True)
                         temp_dir = tempfile.mkdtemp()
                         temp_dirs.append(temp_dir)
-                        image_filename = os.path.basename(url.split('?')[0]) or "image.jpg"
+                        image_filename = os.path.basename(url.split('?')[0])
                         image_path = os.path.join(temp_dir, image_filename)
                         with open(image_path, 'wb') as f:
                             shutil.copyfileobj(response.raw, f)
-                        image_paths.append(image_path)
                     else:
                         st.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
                         logging.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
@@ -291,13 +223,11 @@ def run_parser(parsers):
                     st.error(f"Error downloading image from {url}: {e}")
                     logging.error(f"Error downloading image from {url}: {e}")
 
-    if parser_info['extra_accuracy']:
-        extra_accuracy = st.checkbox("Enable Extra Accuracy", value=True)
-    else:
-        extra_accuracy = False
+    # Determine if both outputs are needed
+    run_both = st.checkbox("Run OCR with and without Extra Accuracy", value=True) if parser_info['extra_accuracy'] else False
 
     if st.button("Run OCR"):
-        if not image_paths and not images:
+        if not images:
             st.error("Please provide at least one image to process.")
             return
 
@@ -311,12 +241,22 @@ def run_parser(parsers):
             'location': 'delhi',
             'user_agent': 'Dummy-device-testing11',
         }
-        if extra_accuracy:
-            form_data['extra_accuracy'] = 'true'
 
-        files = []
-        if image_paths:
-            for image_path in image_paths:
+        # Function to send OCR request
+        def send_ocr_request(extra_accuracy_flag):
+            local_form_data = form_data.copy()
+            if extra_accuracy_flag:
+                local_form_data['extra_accuracy'] = 'true'
+            else:
+                # Ensure extra_accuracy is not in the form data
+                local_form_data.pop('extra_accuracy', None)
+
+            files = []
+            for idx, image in enumerate(images):
+                temp_dir = tempfile.mkdtemp()
+                temp_dirs.append(temp_dir)
+                image_path = os.path.join(temp_dir, f"image_{idx+1}.jpg")
+                image.save(image_path)
                 _, file_ext = os.path.splitext(image_path.lower())
                 mime_types = {
                     '.jpg': 'image/jpeg',
@@ -332,91 +272,35 @@ def run_parser(parsers):
                 except Exception as e:
                     st.error(f"Error opening file {image_path}: {e}")
                     logging.error(f"Error opening file {image_path}: {e}")
-                    return
+                    return None
 
-        try:
-            start_time = time.time()  # Track start time
-            with st.spinner("Processing OCR..."):  # Loading indicator
-                logging.info(f"Sending POST request to {API_ENDPOINT} with Parser App ID: {form_data['parserApp']}")
-                response = requests.post(API_ENDPOINT, headers=headers, data=form_data, files=files if files else None, timeout=120)
-                logging.info(f"Received response with status code: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error making API request: {e}")
-            st.error(f"Error making API request: {e}")
-            return
-        finally:
-            for _, file_tuple in files:
-                file_tuple[1].close()
-
-        time_taken = time.time() - start_time  # Calculate time taken
-        st.success(f"OCR Parsing Successful! Time Taken: {time_taken:.2f} seconds")
-
-        if response.status_code == 200:
             try:
-                response_json = response.json()
-                formatted_json = json.dumps(response_json, indent=4)
-                st.json(response_json)
+                logging.info(f"Sending POST request to {API_ENDPOINT} with Extra Accuracy: {extra_accuracy_flag}")
+                response = requests.post(API_ENDPOINT, headers=headers, data=local_form_data, files=files if files else None, timeout=120)
+                logging.info(f"Received response: {response.status_code}")
+                return response
+            except requests.exceptions.RequestException as e:
+                logging.error(f"Error in API request: {e}")
+                st.error(f"Error in API request: {e}")
+                return None
+            finally:
+                for _, file_tuple in files:
+                    file_tuple[1].close()
 
-                parsed_data = response_json.get('parsedData', {})
-
-                st.markdown("---")
-
-                st.subheader("Processed Images")
-                if images:
-                    num_images = len(images)
-                    cols = st.columns(min(num_images, 5))
-                    for idx, img in enumerate(images):
-                        cols[idx % 5].image(img, caption=f"Image {idx+1}", use_column_width=True)
-
-                st.markdown("---")
-
-                st.subheader("Summary Table")
-                if parsed_data:
-                    if isinstance(parsed_data, dict) and all(not isinstance(v, (dict, list)) for v in parsed_data.values()):
-                        line_items = [(key, value) for key, value in parsed_data.items()]
-                        df = pd.DataFrame(line_items, columns=["Field", "Value"])
-                    elif isinstance(parsed_data, dict):
-                        line_items = []
-                        for section, fields in parsed_data.items():
-                            if isinstance(fields, dict):
-                                for key, value in fields.items():
-                                    line_items.append((f"{section} - {key}", value))
-                            elif isinstance(fields, list):
-                                for item in fields:
-                                    if isinstance(item, dict):
-                                        for key, value in item.items():
-                                            line_items.append((f"{section} - {key}", value))
-                        df = pd.DataFrame(line_items, columns=["Field", "Value"])
-                    elif isinstance(parsed_data, list):
-                        df = pd.DataFrame(parsed_data)
-                    else:
-                        df = pd.DataFrame()
-
-                    if not df.empty:
-                        st.dataframe(
-                            df.style.applymap(lambda val: 'background-color: #f7f9fc' if pd.isna(val) else 'background-color: #e3f2fd'), 
-                            width=st.sidebar.slider("Adjust table width", 800, 1200, 1000),
-                            height=400  # Fixed height
-                        )
-                    else:
-                        st.info("Parsed data format is not supported for table display.")
-                else:
-                    st.info("No parsed data available to display in table format.")
-
-            except json.JSONDecodeError:
-                logging.error("Failed to parse JSON response.")
-                st.error("Failed to parse JSON response.")
-                st.text(response.text)
+        # Send OCR requests
+        responses = {}
+        if run_both:
+            st.info("Running two OCR requests: with and without Extra Accuracy.")
+            response_extra = send_ocr_request(True)
+            response_no_extra = send_ocr_request(False)
+            responses['with_extra_accuracy'] = response_extra
+            responses['without_extra_accuracy'] = response_no_extra
         else:
-            logging.error(f"Request failed with status code {response.status_code}")
-            try:
-                error_response = response.json()
-                st.error(f"Request failed with status code {response.status_code}")
-                st.json(error_response)
-            except json.JSONDecodeError:
-                st.error(f"Request failed with status code {response.status_code}")
-                st.text(response.text)
+            st.info("Running single OCR request based on Extra Accuracy setting.")
+            response = send_ocr_request(parser_info['extra_accuracy'])
+            responses['single'] = response
 
+        # Cleanup temporary directories
         for temp_dir in temp_dirs:
             try:
                 shutil.rmtree(temp_dir)
@@ -424,69 +308,128 @@ def run_parser(parsers):
             except Exception as e:
                 logging.warning(f"Could not remove temporary directory {temp_dir}: {e}")
 
+        # Display Responses
+        for key, response in responses.items():
+            if response and response.status_code == 200:
+                try:
+                    response_json = response.json()
+                    formatted_json = json.dumps(response_json, indent=4)
+                    
+                    if run_both:
+                        if key == 'with_extra_accuracy':
+                            with st.expander("Results with Extra Accuracy"):
+                                st.json(response_json)
+                        elif key == 'without_extra_accuracy':
+                            with st.expander("Results without Extra Accuracy"):
+                                st.json(response_json)
+                    else:
+                        with st.expander("OCR Results"):
+                            st.json(response_json)
+
+                    parsed_data = response_json.get('parsedData', {})
+
+                    st.markdown("---")
+
+                    st.subheader("Processed Images")
+                    if images:
+                        num_images = len(images)
+                        cols = st.columns(min(num_images, 5))
+                        for idx, img in enumerate(images):
+                            cols[idx % 5].image(img, caption=f"Image {idx+1}", use_column_width=True)
+
+                    st.markdown("---")
+
+                    st.subheader("Summary Table")
+                    if parsed_data:
+                        if isinstance(parsed_data, dict) and all(not isinstance(v, (dict, list)) for v in parsed_data.values()):
+                            line_items = [(key, value) for key, value in parsed_data.items()]
+                            df = pd.DataFrame(line_items, columns=["Field", "Value"])
+                        elif isinstance(parsed_data, dict):
+                            line_items = []
+                            for section, fields in parsed_data.items():
+                                if isinstance(fields, dict):
+                                    for key, value in fields.items():
+                                        line_items.append((f"{section} - {key}", value))
+                                elif isinstance(fields, list):
+                                    for item in fields:
+                                        if isinstance(item, dict):
+                                            for key, value in item.items():
+                                                line_items.append((f"{section} - {key}", value))
+                            df = pd.DataFrame(line_items, columns=["Field", "Value"])
+                        elif isinstance(parsed_data, list):
+                            df = pd.DataFrame(parsed_data)
+                        else:
+                            df = pd.DataFrame()
+
+                        if not df.empty:
+                            st.dataframe(
+                                df.style.applymap(lambda val: 'background-color: #f7f9fc' if pd.isna(val) else 'background-color: #e3f2fd'), 
+                                width=st.sidebar.slider("Adjust table width", 800, 1200, 1000),
+                                height=400  # Fixed height
+                            )
+                        else:
+                            st.info("Parsed data format is not supported for table display.")
+                    else:
+                        st.info("No parsed data available to display in table format.")
+
+                except json.JSONDecodeError:
+                    logging.error("Failed to parse JSON response.")
+                    st.error("Failed to parse JSON response.")
+                    st.text(response.text)
+            elif response:
+                st.error(f"OCR Request '{key}' failed with status code {response.status_code}")
+                try:
+                    error_response = response.json()
+                    st.json(error_response)
+                except json.JSONDecodeError:
+                    st.text(response.text)
+            else:
+                st.error(f"OCR Request '{key}' did not receive a response.")
+
 def main():
-    st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
-
-    st.markdown("""
-        <style>
-        .stButton>button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 24px;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-        .stButton>button:hover {
-            background-color: #45a049;
-        }
-        .sidebar .sidebar-content {
-            background-color: #f8f9fa;
-            padding-top: 20px;
-            height: 100%;
-        }
-        .sidebar .sidebar-content h2 {
-            color: #333;
-        }
-        .sidebar .sidebar-content p {
-            color: #555;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
     st.title("📄 FRACTO OCR Parser Web App")
-    st.sidebar.header("Navigation")
-    st.sidebar.markdown("""
-        <p>This app provides functionalities for:</p>
-        <ul>
-            <li>Add OCR parsers</li>
-            <li>List existing parsers</li>
-            <li>Run parsers on images</li>
-        </ul>
-    """, unsafe_allow_html=True)
-
+    st.markdown("""
+    Welcome to the OCR Parser Web App. Use the sidebar to navigate through different functionalities.
+    
+    - **Add Parser**: Add new OCR parsers by providing necessary details.
+    - **List Parsers**: View all existing parsers and manage them.
+    - **Run Parser**: Perform OCR tasks using the configured parsers.
+    """)
+    
     menu = ["List Parsers", "Run Parser", "Add Parser"]
-    choice = st.sidebar.radio("Menu", menu)
-
-    # Ensure parsers.json is downloaded and loaded at the start
-    if 'loaded' not in st.session_state:
-        download_parsers_from_github()
-        st.session_state.loaded = True
-
+    choice = st.sidebar.selectbox("Menu", menu)
+    
+    download_parsers_from_drive()
+    load_parsers()
+    
     if choice == "Add Parser":
         add_new_parser()
     elif choice == "List Parsers":
         list_parsers()
     elif choice == "Run Parser":
         run_parser(st.session_state['parsers'])  
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔄 Update parsers.json")
+    st.sidebar.info("""
+    After making changes (additions, deletions, updates) to the parsers, please **manually upload** the updated `parsers.json` back to Google Drive to keep it in sync.
 
-    st.sidebar.header("GitHub Actions")
-    if st.sidebar.button("Download Parsers"):
-        download_parsers_from_github()
+    **Steps:**
+    1. Click on the **"Download parsers.json"** button below.
+    2. Upload the downloaded `parsers.json` to your Google Drive at the desired location.
+    """)
 
-    if st.sidebar.button("Update Parsers File"):
-        upload_parsers_to_github()
+    if st.sidebar.button("Download parsers.json"):
+        if os.path.exists(LOCAL_PARSERS_FILE):
+            with open(LOCAL_PARSERS_FILE, 'rb') as f:
+                st.sidebar.download_button(
+                    label="Download parsers.json",
+                    data=f,
+                    file_name='parsers.json',
+                    mime='application/json'
+                )
+        else:
+            st.sidebar.error("parsers.json file not found.")
 
 if __name__ == "__main__":
     main()
