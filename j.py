@@ -37,9 +37,6 @@ if 'refresh' not in st.session_state:
     st.session_state['refresh'] = False
 
 def download_parsers_from_github():
-    """
-    Download parsers.json from GitHub and load it into session state.
-    """
     headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
     try:
         response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
@@ -72,9 +69,6 @@ def download_parsers_from_github():
         logging.error(f"Unexpected error: {e}")
 
 def upload_parsers_to_github():
-    """
-    Upload the updated parsers.json to GitHub.
-    """
     try:
         if not os.path.exists(LOCAL_PARSERS_FILE):
             st.error("`parsers.json` file not found locally. Please download it first.")
@@ -116,9 +110,6 @@ def upload_parsers_to_github():
         logging.error(f"An unexpected error occurred during upload: {e}")
 
 def get_current_sha():
-    """
-    Retrieve the current SHA of parsers.json from GitHub.
-    """
     headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
     try:
         response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
@@ -148,17 +139,11 @@ def get_current_sha():
     return None
 
 def load_parsers():
-    """
-    Load parsers from the local parsers.json file into session state.
-    """
     if os.path.exists(LOCAL_PARSERS_FILE):
         try:
             with open(LOCAL_PARSERS_FILE, 'r') as f:
-                parsers = json.load(f)
-                st.session_state['parsers'] = parsers
+                st.session_state['parsers'] = json.load(f)
             logging.info("`parsers.json` loaded into session state.")
-            st.success("`parsers.json` loaded successfully.")
-            logging.debug(f"Loaded parsers: {parsers}")  # Detailed log
         except json.JSONDecodeError:
             st.error("`parsers.json` is corrupted or not in valid JSON format.")
             logging.error("`parsers.json` is corrupted or not in valid JSON format.")
@@ -170,9 +155,6 @@ def load_parsers():
         logging.error("`parsers.json` does not exist locally.")
 
 def save_parsers():
-    """
-    Save the parsers from session state to the local parsers.json file.
-    """
     try:
         with open(LOCAL_PARSERS_FILE, 'w') as f:
             json.dump(st.session_state['parsers'], f, indent=4)
@@ -183,9 +165,6 @@ def save_parsers():
         logging.error(f"Failed to save `parsers.json` locally: {e}")
 
 def add_new_parser():
-    """
-    Form to add a new OCR parser.
-    """
     st.subheader("Add a New Parser")
     with st.form("add_parser_form"):
         parser_name = st.text_input("Parser Name").strip()
@@ -221,9 +200,6 @@ def add_new_parser():
                 st.experimental_set_query_params(refresh='true')
 
 def list_parsers():
-    """
-    List all existing OCR parsers.
-    """
     st.subheader("List of All Parsers")
     if not st.session_state['parsers']:
         st.info("No parsers available. Please add a parser first.")
@@ -279,14 +255,18 @@ def run_parser(parsers):
         uploaded_files = st.file_uploader("Choose image(s)...", type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"], accept_multiple_files=True)
         if uploaded_files:
             for uploaded_file in uploaded_files:
-                image = Image.open(uploaded_file)
-                images.append(image)
-                st.image(image, caption=uploaded_file.name, use_column_width=True)
-                temp_dir = tempfile.mkdtemp()
-                temp_dirs.append(temp_dir)
-                image_path = os.path.join(temp_dir, uploaded_file.name)
-                image.save(image_path)
-                image_paths.append(image_path)
+                try:
+                    image = Image.open(uploaded_file)
+                    images.append(image)
+                    st.image(image, caption=uploaded_file.name, use_column_width=True)
+                    temp_dir = tempfile.mkdtemp()
+                    temp_dirs.append(temp_dir)
+                    image_path = os.path.join(temp_dir, uploaded_file.name)
+                    image.save(image_path)
+                    image_paths.append(image_path)
+                except Exception as e:
+                    st.error(f"Error processing file {uploaded_file.name}: {e}")
+                    logging.error(f"Error processing file {uploaded_file.name}: {e}")
     else:
         image_urls = st.text_area("Enter Image URLs (one per line)")
         if image_urls:
@@ -297,22 +277,25 @@ def run_parser(parsers):
                     if response.status_code == 200:
                         image = Image.open(BytesIO(response.content))
                         images.append(image)
-                        st.image(image, caption=os.path.basename(url.split('?')[0]), use_column_width=True)
+                        image_caption = os.path.basename(url.split('?')[0]) or "Image"
+                        st.image(image, caption=image_caption, use_column_width=True)
                         temp_dir = tempfile.mkdtemp()
                         temp_dirs.append(temp_dir)
-                        image_filename = os.path.basename(url.split('?')[0])
+                        image_filename = os.path.basename(url.split('?')[0]) or "image.jpg"
                         image_path = os.path.join(temp_dir, image_filename)
                         with open(image_path, 'wb') as f:
                             shutil.copyfileobj(response.raw, f)
                         image_paths.append(image_path)
                     else:
                         st.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
+                        logging.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
                 except Exception as e:
                     st.error(f"Error downloading image from {url}: {e}")
+                    logging.error(f"Error downloading image from {url}: {e}")
 
     if st.button("Run OCR"):
         if not image_paths and not images:
-            st.error("Please provide at least one image to process.")
+            st.error("Please provide at least one image.")
             return
 
         headers = {
@@ -332,7 +315,7 @@ def run_parser(parsers):
             if extra_accuracy:
                 local_form_data['extra_accuracy'] = 'true'
 
-            # Reopen the file objects for reading
+            # List of files to upload
             files = []
             for image_path in image_paths:
                 _, file_ext = os.path.splitext(image_path.lower())
@@ -345,123 +328,76 @@ def run_parser(parsers):
                     '.tiff': 'image/tiff'
                 }
                 mime_type = mime_types.get(file_ext, 'application/octet-stream')
-                files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
+                try:
+                    files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
+                except Exception as e:
+                    st.error(f"Error opening file {image_path}: {e}")
+                    logging.error(f"Error opening file {image_path}: {e}")
+                    return None
 
             try:
-                start_time = time.time()
                 logging.info(f"Sending POST request to {API_ENDPOINT} with Parser App ID: {local_form_data['parserApp']}, Extra Accuracy: {extra_accuracy}")
                 response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=120)
-                time_taken = time.time() - start_time
-                logging.info(f"Received response with status code: {response.status_code}")
-                return response, time_taken
+                logging.info(f"Received response: {response.status_code}")
+                return response
             except requests.exceptions.RequestException as e:
-                logging.error(f"Error making API request: {e}")
-                st.error(f"Error making API request: {e}")
-                return None, 0
+                logging.error(f"Error in API request: {e}")
+                st.error(f"Error in API request: {e}")
+                return None
             finally:
+                # Cleanup files
                 for _, file_tuple in files:
                     file_tuple[1].close()
 
         with st.spinner("Processing OCR..."):
-            response_extra, time_taken_extra = send_request(True)
-            response_no_extra, time_taken_no_extra = send_request(False)
+            response_extra = send_request(True)
+            response_no_extra = send_request(False)
 
+        # Cleanup temporary directories
         for temp_dir in temp_dirs:
             try:
                 shutil.rmtree(temp_dir)
-                logging.info(f"Cleaned up temporary directory {temp_dir}")
             except Exception as e:
-                logging.warning(f"Could not remove temporary directory {temp_dir}: {e}")
+                logging.error(f"Error removing temp dir {temp_dir}: {e}")
 
         if response_extra and response_no_extra:
-            if response_extra.status_code == 200 and response_no_extra.status_code == 200:
+            success_extra = response_extra.status_code == 200
+            success_no_extra = response_no_extra.status_code == 200
+
+            if success_extra:
                 try:
                     response_json_extra = response_extra.json()
-                    response_json_no_extra = response_no_extra.json()
-                    
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.expander("JSON Result with Extra Accuracy - ⏱ {:.2f}s".format(time_taken_extra)).write(response_json_extra)
-                    with col2:
-                        st.expander("JSON Result without Extra Accuracy - ⏱ {:.2f}s".format(time_taken_no_extra)).write(response_json_no_extra)
-
-                    comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
-
-                    st.expander("Comparison JSON").write(comparison_results)
-
-                    st.markdown("### Comparison Table")
-                    comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
-                    builder = GridOptionsBuilder.from_dataframe(comparison_table)
-                    builder.configure_pagination(enabled=True, paginationAutoPageSize=True)
-                    builder.configure_default_column(editable=False, groupable=True)
-                    grid_options = builder.build()
-                    AgGrid(comparison_table, gridOptions=grid_options, height=500, enable_enterprise_modules=True)
-
+                        with st.expander("Results with Extra Accuracy"):
+                            st.json(response_json_extra)
                 except json.JSONDecodeError:
-                    st.error("Failed to parse JSON response.")
-                    st.text("Response with Extra Accuracy:\n" + response_extra.text)
-                    st.text("Response without Extra Accuracy:\n" + response_no_extra.text)
+                    st.error("Failed to parse JSON response with Extra Accuracy.")
+                    logging.error("Failed to parse JSON response with Extra Accuracy.")
+
             else:
-                st.error(f"Request failed with status code: {response_extra.status_code if response_extra else response_no_extra.status_code}")
+                st.error("Request with Extra Accuracy failed.")
+                logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
 
+            if success_no_extra:
+                try:
+                    response_json_no_extra = response_no_extra.json()
+                    with st.container():
+                        with st.expander("Results without Extra Accuracy"):
+                            st.json(response_json_no_extra)
+                except json.JSONDecodeError:
+                    st.error("Failed to parse JSON response without Extra Accuracy.")
+                    logging.error("Failed to parse JSON response without Extra Accuracy.")
+            else:
+                st.error("Request without Extra Accuracy failed.")
+                logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
+
+            if success_extra and success_no_extra:
+                st.success("Both OCR requests completed successfully.")
+            else:
+                st.error("One or both OCR requests failed. Please check the logs for more details.")
         else:
-            st.error("Both requests failed. Please try again.")
-
-def flatten_json(y):
-    """
-    Flatten a nested JSON object.
-    """
-    out = {}
-    order = []
-
-    def flatten(x, name=''):
-        if isinstance(x, dict):
-            for a in x:
-                flatten(x[a], name + a + '.')
-        elif isinstance(x, list):
-            i = 0;
-            for a in x:
-                flatten(a, name + str(i) + '.')
-                i += 1
-        else:
-            out[name[:-1]] = x
-            order.append(name[:-1])
-    flatten(y)
-    return out, order
-
-def generate_comparison_results(json1, json2):
-    """
-    Generate a new JSON object with tick or cross based on whether attributes match.
-    """
-    flat_json1, order1 = flatten_json(json1)
-    flat_json2, _ = flatten_json(json2)
-
-    comparison_results = {}
-
-    for key in order1:
-        val1 = flat_json1.get(key, "N/A")
-        val2 = flat_json2.get(key, "N/A")
-        match = (val1 == val2)
-        comparison_results[key] = "✔" if match else "✘"
-
-    return comparison_results
-
-def generate_comparison_df(json1, json2, comparison_results):
-    """
-    Generate a DataFrame comparing two JSON objects.
-    """
-    flat_json1, order1 = flatten_json(json1)
-    flat_json2, _ = flatten_json(json2)
-
-    data = []
-    for key in order1:
-        val1 = flat_json1.get(key, "N/A")
-        val2 = flat_json2.get(key, "N/A")
-        match = comparison_results[key]
-        data.append([key, val1, val2, match])
-
-    df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
-    return df
+            st.error("One or both OCR requests did not receive a response.")
 
 def main():
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
@@ -493,47 +429,39 @@ def main():
         }
         </style>
     """, unsafe_allow_html=True)
-    
+
     st.title("📄 FRACTO OCR Parser Web App")
     st.sidebar.header("Navigation")
     st.sidebar.markdown("""
         <p>This app provides functionalities for:</p>
         <ul>
-            <li>Adding OCR parsers</li>
-            <li>Listing existing parsers</li>
-            <li>Running parsers on images</li>
+            <li>Add OCR parsers</li>
+            <li>List existing parsers</li>
+            <li>Run parsers on images</li>
         </ul>
     """, unsafe_allow_html=True)
-    
+
     menu = ["List Parsers", "Run Parser", "Add Parser"]
     choice = st.sidebar.radio("Menu", menu)
-    
-    download_parsers_from_dropbox()
-    load_parsers()
-    
+
+    # Ensure this is only called at the start to load or get the latest parsers.
+    if 'loaded' not in st.session_state:
+        download_parsers_from_github()
+        st.session_state.loaded = True
+
     if choice == "Add Parser":
         add_new_parser()
     elif choice == "List Parsers":
         list_parsers()
     elif choice == "Run Parser":
         run_parser(st.session_state['parsers'])
-    
-    st.sidebar.header("Synchronize parsers.json")
-    if st.sidebar.button("Upload parsers.json to Dropbox"):
-        upload_parsers_to_dropbox()
 
-    if st.sidebar.button("Download parsers.json"):
-        if os.path.exists(LOCAL_PARSERS_FILE):
-            with open(LOCAL_PARSERS_FILE, 'rb') as f:
-                st.sidebar.download_button(
-                    label="Download parsers.json",
-                    data=f,
-                    file_name='parsers.json',
-                    mime='application/json'
-                )
-        else:
-            st.sidebar.error("parsers.json file not found.")
+    st.sidebar.header("GitHub Actions")
+    if st.sidebar.button("Download Parsers"):
+        download_parsers_from_github()
+
+    if st.sidebar.button("Update Parsers File"):
+        upload_parsers_to_github()
 
 if __name__ == "__main__":
     main()
-
