@@ -285,6 +285,14 @@ def generate_comparison_df(json1, json2, comparison_results):
     df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
     return df
 
+def display_pdf(file):
+    """
+    Display a PDF file within the Streamlit app using an embedded iframe.
+    """
+    base64_pdf = base64.b64encode(file.read()).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
 def run_parser(parsers):
     st.subheader("Run OCR Parser")
     if not parsers:
@@ -299,10 +307,12 @@ def run_parser(parsers):
     st.write(f"**Parser App ID:** {parser_info['parser_app_id']}")
     st.write(f"**Extra Accuracy Required:** {'Yes' if parser_info['extra_accuracy'] else 'No'}")
 
-    input_method = st.radio("Choose Input Method", ("Upload Image File", "Enter Image URL"))
+    input_method = st.radio("Choose Input Method", ("Upload Image File", "Upload PDF File", "Enter Image URL"))
 
     image_paths = []
+    pdf_paths = []
     images = []
+    pdf_files = []
     temp_dirs = []
 
     if input_method == "Upload Image File":
@@ -325,7 +335,29 @@ def run_parser(parsers):
                 except Exception as e:
                     st.error(f"Error processing file {uploaded_file.name}: {e}")
                     logging.error(f"Error processing file {uploaded_file.name}: {e}")
-    else:
+    elif input_method == "Upload PDF File":
+        uploaded_pdfs = st.file_uploader(
+            "Choose PDF file(s)...",
+            type=["pdf"],
+            accept_multiple_files=True
+        )
+        if uploaded_pdfs:
+            for uploaded_pdf in uploaded_pdfs:
+                try:
+                    # Display PDF
+                    display_pdf(uploaded_pdf)
+                    uploaded_pdf.seek(0)  # Reset file pointer after reading
+                    pdf_files.append(uploaded_pdf)
+                    temp_dir = tempfile.mkdtemp()
+                    temp_dirs.append(temp_dir)
+                    pdf_path = os.path.join(temp_dir, uploaded_pdf.name)
+                    with open(pdf_path, 'wb') as f:
+                        f.write(uploaded_pdf.read())
+                    pdf_paths.append(pdf_path)
+                except Exception as e:
+                    st.error(f"Error processing PDF {uploaded_pdf.name}: {e}")
+                    logging.error(f"Error processing PDF {uploaded_pdf.name}: {e}")
+    else:  # Enter Image URL
         image_urls = st.text_area("Enter Image URLs (one per line)")
         if image_urls:
             urls = image_urls.strip().split('\n')
@@ -352,8 +384,8 @@ def run_parser(parsers):
                     logging.error(f"Error downloading image from {url}: {e}")
 
     if st.button("Run OCR"):
-        if not image_paths and not images:
-            st.error("Please provide at least one image.")
+        if not image_paths and not pdf_paths:
+            st.error("Please provide at least one image or PDF to process.")
             return
 
         headers = {
@@ -367,7 +399,7 @@ def run_parser(parsers):
             'user_agent': 'Dummy-device-testing11',
         }
 
-        def send_request(extra_accuracy):
+        def send_request(file_paths, extra_accuracy):
             local_headers = headers.copy()
             local_form_data = form_data.copy()
             if extra_accuracy:
@@ -375,22 +407,23 @@ def run_parser(parsers):
 
             # List of files to upload
             files = []
-            for image_path in image_paths:
-                _, file_ext = os.path.splitext(image_path.lower())
+            for file_path in file_paths:
+                _, file_ext = os.path.splitext(file_path.lower())
                 mime_types = {
                     '.jpg': 'image/jpeg',
                     '.jpeg': 'image/jpeg',
                     '.png': 'image/png',
                     '.bmp': 'image/bmp',
                     '.gif': 'image/gif',
-                    '.tiff': 'image/tiff'
+                    '.tiff': 'image/tiff',
+                    '.pdf': 'application/pdf'
                 }
                 mime_type = mime_types.get(file_ext, 'application/octet-stream')
                 try:
-                    files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
+                    files.append(('file', (os.path.basename(file_path), open(file_path, 'rb'), mime_type)))
                 except Exception as e:
-                    st.error(f"Error opening file {image_path}: {e}")
-                    logging.error(f"Error opening file {image_path}: {e}")
+                    st.error(f"Error opening file {file_path}: {e}")
+                    logging.error(f"Error opening file {file_path}: {e}")
                     return None, 0
 
             try:
@@ -410,8 +443,10 @@ def run_parser(parsers):
                     file_tuple[1].close()
 
         with st.spinner("Processing OCR..."):
-            response_extra, time_taken_extra = send_request(True)
-            response_no_extra, time_taken_no_extra = send_request(False)
+            response_extra_img, time_taken_extra_img = send_request(image_paths, True) if image_paths else (None, 0)
+            response_extra_pdf, time_taken_extra_pdf = send_request(pdf_paths, True) if pdf_paths else (None, 0)
+            response_no_extra_img, time_taken_no_extra_img = send_request(image_paths, False) if image_paths else (None, 0)
+            response_no_extra_pdf, time_taken_no_extra_pdf = send_request(pdf_paths, False) if pdf_paths else (None, 0)
 
         # Cleanup temporary directories
         for temp_dir in temp_dirs:
@@ -421,45 +456,79 @@ def run_parser(parsers):
             except Exception as e:
                 logging.warning(f"Could not remove temporary directory {temp_dir}: {e}")
 
-        if response_extra and response_no_extra:
-            success_extra = response_extra.status_code == 200
-            success_no_extra = response_no_extra.status_code == 200
+        # Combine responses and times
+        responses_extra = [resp for resp in [response_extra_img, response_extra_pdf] if resp is not None]
+        times_extra = [time_taken_extra_img, time_taken_extra_pdf]
+        responses_no_extra = [resp for resp in [response_no_extra_img, response_no_extra_pdf] if resp is not None]
+        times_no_extra = [time_taken_no_extra_img, time_taken_no_extra_pdf]
 
+        # Process Extra Accuracy Responses
+        if responses_extra:
+            combined_response_extra = {}
+            combined_time_extra = 0
+            for resp, t in zip(responses_extra, times_extra):
+                if resp.status_code == 200:
+                    try:
+                        combined_response_extra.update(resp.json())
+                        combined_time_extra += t
+                    except json.JSONDecodeError:
+                        st.error("Failed to parse JSON response with Extra Accuracy.")
+                        logging.error("Failed to parse JSON response with Extra Accuracy.")
+                else:
+                    st.error(f"Request with Extra Accuracy failed with status code: {resp.status_code}")
+                    logging.error(f"Request with Extra Accuracy failed with status code: {resp.status_code}")
+            success_extra = combined_response_extra != {}
+        else:
+            combined_response_extra = None
+            combined_time_extra = 0
+            success_extra = False
+
+        # Process No Extra Accuracy Responses
+        if responses_no_extra:
+            combined_response_no_extra = {}
+            combined_time_no_extra = 0
+            for resp, t in zip(responses_no_extra, times_no_extra):
+                if resp.status_code == 200:
+                    try:
+                        combined_response_no_extra.update(resp.json())
+                        combined_time_no_extra += t
+                    except json.JSONDecodeError:
+                        st.error("Failed to parse JSON response without Extra Accuracy.")
+                        logging.error("Failed to parse JSON response without Extra Accuracy.")
+                else:
+                    st.error(f"Request without Extra Accuracy failed with status code: {resp.status_code}")
+                    logging.error(f"Request without Extra Accuracy failed with status code: {resp.status_code}")
+            success_no_extra = combined_response_no_extra != {}
+        else:
+            combined_response_no_extra = None
+            combined_time_no_extra = 0
+            success_no_extra = False
+
+        # Display Results
+        if success_extra or success_no_extra:
             # Create two columns for side-by-side display
             col1, col2 = st.columns(2)
 
             if success_extra:
-                try:
-                    response_json_extra = response_extra.json()
-                    with col1:
-                        st.expander(f"Results with Extra Accuracy - ⏱ {time_taken_extra:.2f}s").json(response_json_extra)
-                except json.JSONDecodeError:
-                    with col1:
-                        st.error("Failed to parse JSON response with Extra Accuracy.")
-                        logging.error("Failed to parse JSON response with Extra Accuracy.")
+                with col1:
+                    st.expander(f"Results with Extra Accuracy - ⏱ {combined_time_extra:.2f}s").json(combined_response_extra)
             else:
                 with col1:
                     st.error("Request with Extra Accuracy failed.")
-                    logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
+                    logging.error("Request with Extra Accuracy failed.")
 
             if success_no_extra:
-                try:
-                    response_json_no_extra = response_no_extra.json()
-                    with col2:
-                        st.expander(f"Results without Extra Accuracy - ⏱ {time_taken_no_extra:.2f}s").json(response_json_no_extra)
-                except json.JSONDecodeError:
-                    with col2:
-                        st.error("Failed to parse JSON response without Extra Accuracy.")
-                        logging.error("Failed to parse JSON response without Extra Accuracy.")
+                with col2:
+                    st.expander(f"Results without Extra Accuracy - ⏱ {combined_time_no_extra:.2f}s").json(combined_response_no_extra)
             else:
                 with col2:
                     st.error("Request without Extra Accuracy failed.")
-                    logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
+                    logging.error("Request without Extra Accuracy failed.")
 
             # Comparison JSON
             st.subheader("Comparison JSON")
             if success_extra and success_no_extra:
-                comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
+                comparison_results = generate_comparison_results(combined_response_extra, combined_response_no_extra)
                 st.expander("Comparison JSON").json(comparison_results)
             else:
                 st.error("Cannot generate Comparison JSON as one or both OCR requests failed.")
@@ -467,8 +536,8 @@ def run_parser(parsers):
             # Comparison Table
             st.subheader("Comparison Table")
             if success_extra and success_no_extra:
-                comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
-                comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
+                comparison_results = generate_comparison_results(combined_response_extra, combined_response_no_extra)
+                comparison_table = generate_comparison_df(combined_response_extra, combined_response_no_extra, comparison_results)
 
                 if not comparison_table.empty:
                     gb = GridOptionsBuilder.from_dataframe(comparison_table)
@@ -489,7 +558,7 @@ def run_parser(parsers):
             else:
                 st.error("One or both OCR requests failed. Please check the logs for more details.")
         else:
-            st.error("One or both OCR requests did not receive a response.")
+            st.error("One or both OCR requests did not receive a valid response.")
 
 def main():
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
@@ -529,7 +598,7 @@ def main():
         <ul>
             <li>Add OCR parsers</li>
             <li>List existing parsers</li>
-            <li>Run parsers on images</li>
+            <li>Run parsers on images or PDFs</li>
         </ul>
     """, unsafe_allow_html=True)
 
@@ -557,4 +626,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
