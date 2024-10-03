@@ -16,8 +16,9 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 # GitHub Configuration using Streamlit Secrets
 GITHUB_REPO = 'ankuraeren/ocr'
+GITHUB_BRANCH = 'main'  # Define the branch
 GITHUB_FILE_PATH = 'parsers.json'
-GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}'
+GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}?ref={GITHUB_BRANCH}'
 
 # Access GitHub Access Token securely from secrets
 GITHUB_ACCESS_TOKEN = st.secrets["github"]["access_token"]
@@ -69,6 +70,11 @@ def download_parsers_from_github():
 
 def upload_parsers_to_github():
     try:
+        if not os.path.exists(LOCAL_PARSERS_FILE):
+            st.error("`parsers.json` file not found locally. Please download it first.")
+            logging.error("`parsers.json` file not found locally.")
+            return
+
         with open(LOCAL_PARSERS_FILE, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
 
@@ -84,7 +90,7 @@ def upload_parsers_to_github():
             'message': 'Update parsers.json file',
             'content': content,
             'sha': current_sha,
-            'branch': 'main'
+            'branch': GITHUB_BRANCH
         }
 
         response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
