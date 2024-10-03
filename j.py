@@ -255,9 +255,6 @@ def list_parsers():
                 st.experimental_set_query_params(refresh='true')
 
 def run_parser(parsers):
-    """
-    Run the OCR parser by sending requests to the OCR API and displaying the results.
-    """
     st.subheader("Run OCR Parser")
     if not parsers:
         st.info("No parsers available. Please add a parser first.")
@@ -278,25 +275,17 @@ def run_parser(parsers):
     temp_dirs = []
 
     if input_method == "Upload Image File":
-        uploaded_files = st.file_uploader(
-            "Choose image(s)...",
-            type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"],
-            accept_multiple_files=True
-        )
+        uploaded_files = st.file_uploader("Choose image(s)...", type=["jpg", "jpeg", "png", "bmp", "gif", "tiff"], accept_multiple_files=True)
         if uploaded_files:
             for uploaded_file in uploaded_files:
-                try:
-                    image = Image.open(uploaded_file)
-                    images.append(image)
-                    st.image(image, caption=uploaded_file.name, use_column_width=True)
-                    temp_dir = tempfile.mkdtemp()
-                    temp_dirs.append(temp_dir)
-                    image_path = os.path.join(temp_dir, uploaded_file.name)
-                    image.save(image_path)
-                    image_paths.append(image_path)
-                except Exception as e:
-                    st.error(f"Error processing file {uploaded_file.name}: {e}")
-                    logging.error(f"Error processing file {uploaded_file.name}: {e}")
+                image = Image.open(uploaded_file)
+                images.append(image)
+                st.image(image, caption=uploaded_file.name, use_column_width=True)
+                temp_dir = tempfile.mkdtemp()
+                temp_dirs.append(temp_dir)
+                image_path = os.path.join(temp_dir, uploaded_file.name)
+                image.save(image_path)
+                image_paths.append(image_path)
     else:
         image_urls = st.text_area("Enter Image URLs (one per line)")
         if image_urls:
@@ -307,26 +296,18 @@ def run_parser(parsers):
                     if response.status_code == 200:
                         image = Image.open(BytesIO(response.content))
                         images.append(image)
-                        caption = os.path.basename(url.split('?')[0]) or "Image"
-                        st.image(image, caption=caption, use_column_width=True)
+                        st.image(image, caption=os.path.basename(url.split('?')[0]), use_column_width=True)
                         temp_dir = tempfile.mkdtemp()
                         temp_dirs.append(temp_dir)
-                        image_filename = os.path.basename(url.split('?')[0]) or "image.jpg"
+                        image_filename = os.path.basename(url.split('?')[0])
                         image_path = os.path.join(temp_dir, image_filename)
                         with open(image_path, 'wb') as f:
                             shutil.copyfileobj(response.raw, f)
                         image_paths.append(image_path)
                     else:
                         st.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
-                        logging.error(f"Failed to download image from {url}. Status Code: {response.status_code}")
                 except Exception as e:
                     st.error(f"Error downloading image from {url}: {e}")
-                    logging.error(f"Error downloading image from {url}: {e}")
-
-    # Determine if both outputs are needed
-    run_both = parser_info['extra_accuracy']  # Automatically decide based on parser's extra_accuracy setting
-    if run_both:
-        run_both = st.checkbox("Run OCR with and without Extra Accuracy", value=True)
 
     if st.button("Run OCR"):
         if not image_paths and not images:
@@ -345,9 +326,6 @@ def run_parser(parsers):
         }
 
         def send_request(extra_accuracy):
-            """
-            Send a POST request to the OCR API with the specified extra_accuracy flag.
-            """
             local_headers = headers.copy()
             local_form_data = form_data.copy()
             if extra_accuracy:
@@ -366,22 +344,12 @@ def run_parser(parsers):
                     '.tiff': 'image/tiff'
                 }
                 mime_type = mime_types.get(file_ext, 'application/octet-stream')
-                try:
-                    files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
-                except Exception as e:
-                    st.error(f"Error opening file {image_path}: {e}")
-                    logging.error(f"Error opening file {image_path}: {e}")
-                    return None
+                files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
 
             try:
+                # Simulate sending request
                 logging.info(f"Sending POST request to {API_ENDPOINT} with Parser App ID: {local_form_data['parserApp']}, Extra Accuracy: {extra_accuracy}")
-                response = requests.post(
-                    API_ENDPOINT,
-                    headers=local_headers,
-                    data=local_form_data,
-                    files=files if files else None,
-                    timeout=120
-                )
+                response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=120)
                 logging.info(f"Received response: {response.status_code}")
                 return response
             except requests.exceptions.RequestException as e:
@@ -394,144 +362,34 @@ def run_parser(parsers):
                     file_tuple[1].close()
 
         with st.spinner("Processing OCR..."):
-            if run_both:
-                response_extra = send_request(True)
-                response_no_extra = send_request(False)
-            else:
-                response_extra = send_request(parser_info['extra_accuracy'])
-                response_no_extra = None  # No second request
+            response_extra = send_request(True)
+            response_no_extra = send_request(False)
 
-        # Cleanup temporary directories
         for temp_dir in temp_dirs:
             try:
                 shutil.rmtree(temp_dir)
-                logging.info(f"Cleaned up temporary directory {temp_dir}")
             except Exception as e:
-                logging.warning(f"Could not remove temporary directory {temp_dir}: {e}")
+                logging.error(f"Error removing temp dir {temp_dir}: {e}")
 
-        # Display Responses
-        if run_both:
-            if response_extra and response_no_extra:
-                success_extra = response_extra.status_code == 200
-                success_no_extra = response_no_extra.status_code == 200
+        if response_extra and response_no_extra and response_extra.status_code == 200 and response_no_extra.status_code == 200:
+            try:
+                response_json_extra = response_extra.json()
+                response_json_no_extra = response_no_extra.json()
 
-                cols = st.columns(2)  # Create two columns for side-by-side display
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.expander(f"Results with Extra Accuracy").json(response_json_extra)
+                with col2:
+                    st.expander(f"Results without Extra Accuracy").json(response_json_no_extra)
 
-                # Display Results with Extra Accuracy
-                if success_extra:
-                    try:
-                        response_json_extra = response_extra.json()
-                        with cols[0]:
-                            with st.expander("Results with Extra Accuracy"):
-                                st.json(response_json_extra)
-                    except json.JSONDecodeError:
-                        st.error("Failed to parse JSON response with Extra Accuracy.")
-                        logging.error("Failed to parse JSON response with Extra Accuracy.")
-
-                else:
-                    with cols[0]:
-                        st.error("Request with Extra Accuracy failed.")
-                        logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
-
-                # Display Results without Extra Accuracy
-                if success_no_extra:
-                    try:
-                        response_json_no_extra = response_no_extra.json()
-                        with cols[1]:
-                            with st.expander("Results without Extra Accuracy"):
-                                st.json(response_json_no_extra)
-                    except json.JSONDecodeError:
-                        st.error("Failed to parse JSON response without Extra Accuracy.")
-                        logging.error("Failed to parse JSON response without Extra Accuracy.")
-                else:
-                    with cols[1]:
-                        st.error("Request without Extra Accuracy failed.")
-                        logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
-
-                # Summary Message
-                if success_extra and success_no_extra:
-                    st.success("Both OCR requests completed successfully.")
-                else:
-                    st.error("One or both OCR requests failed. Please check the logs for more details.")
-            else:
-                st.error("One or both OCR requests did not receive a response.")
-        else:
-            # Only one OCR request was made
-            if response_extra:
-                if response_extra.status_code == 200:
-                    try:
-                        response_json = response_extra.json()
-                        with st.expander("OCR Results"):
-                            st.json(response_json)
-
-                        parsed_data = response_json.get('parsedData', {})
-
-                        st.markdown("---")
-
-                        st.subheader("Processed Images")
-                        if images:
-                            num_images = len(images)
-                            cols = st.columns(min(num_images, 5))
-                            for idx, img in enumerate(images):
-                                cols[idx % 5].image(img, caption=f"Image {idx+1}", use_column_width=True)
-
-                        st.markdown("---")
-
-                        st.subheader("Summary Table")
-                        if parsed_data:
-                            if isinstance(parsed_data, dict) and all(not isinstance(v, (dict, list)) for v in parsed_data.values()):
-                                line_items = [(key, value) for key, value in parsed_data.items()]
-                                df = pd.DataFrame(line_items, columns=["Field", "Value"])
-                            elif isinstance(parsed_data, dict):
-                                line_items = []
-                                for section, fields in parsed_data.items():
-                                    if isinstance(fields, dict):
-                                        for key, value in fields.items():
-                                            line_items.append((f"{section} - {key}", value))
-                                    elif isinstance(fields, list):
-                                        for item in fields:
-                                            if isinstance(item, dict):
-                                                for key, value in item.items():
-                                                    line_items.append((f"{section} - {key}", value))
-                                df = pd.DataFrame(line_items, columns=["Field", "Value"])
-                            elif isinstance(parsed_data, list):
-                                df = pd.DataFrame(parsed_data)
-                            else:
-                                df = pd.DataFrame()
-
-                            if not df.empty:
-                                st.dataframe(
-                                    df.style.applymap(lambda val: 'background-color: #f7f9fc' if pd.isna(val) else 'background-color: #e3f2fd'),
-                                    width=st.sidebar.slider("Adjust table width", 800, 1200, 1000),
-                                    height=400  # Fixed height
-                                )
-                            else:
-                                st.info("Parsed data format is not supported for table display.")
-                        else:
-                            st.info("No parsed data available to display in table format.")
-
-                        st.success("OCR request completed successfully.")
-                    except json.JSONDecodeError:
-                        st.error("Failed to parse JSON response.")
-                        logging.error("Failed to parse JSON response.")
-                        st.text(response_extra.text)
-                else:
-                    st.error(f"OCR Request failed with status code {response_extra.status_code}")
-                    try:
-                        error_response = response_extra.json()
-                        st.json(error_response)
-                    except json.JSONDecodeError:
-                        st.text(response_extra.text)
-            else:
-                st.error("OCR request did not receive a response.")
+            except json.JSONDecodeError:
+                st.error("Failed to parse JSON response.")
+        else: 
+            st.error("Both requests failed. Please try again.")
 
 def main():
-    """
-    Main function to run the Streamlit app.
-    """
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
 
-    # Custom CSS for styling
     st.markdown("""
         <style>
         .stButton>button {
@@ -574,7 +432,7 @@ def main():
     menu = ["List Parsers", "Run Parser", "Add Parser"]
     choice = st.sidebar.radio("Menu", menu)
 
-    # Ensure parsers are loaded only once
+    # Ensure this is only called at the start to load or get the latest parsers.
     if 'loaded' not in st.session_state:
         download_parsers_from_github()
         st.session_state.loaded = True
