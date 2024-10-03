@@ -368,33 +368,65 @@ def run_parser(parsers):
             success_extra = response_extra.status_code == 200
             success_no_extra = response_no_extra.status_code == 200
 
+            # Create two columns for side-by-side display
+            col1, col2 = st.columns(2)
+
             if success_extra:
                 try:
                     response_json_extra = response_extra.json()
-                    col1, col2 = st.columns(2)
                     with col1:
                         with st.expander("Results with Extra Accuracy"):
                             st.json(response_json_extra)
                 except json.JSONDecodeError:
-                    st.error("Failed to parse JSON response with Extra Accuracy.")
-                    logging.error("Failed to parse JSON response with Extra Accuracy.")
-
+                    with col1:
+                        st.error("Failed to parse JSON response with Extra Accuracy.")
+                        logging.error("Failed to parse JSON response with Extra Accuracy.")
             else:
-                st.error("Request with Extra Accuracy failed.")
-                logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
+                with col1:
+                    st.error("Request with Extra Accuracy failed.")
+                    logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
 
             if success_no_extra:
                 try:
                     response_json_no_extra = response_no_extra.json()
-                    with st.container():
+                    with col2:
                         with st.expander("Results without Extra Accuracy"):
                             st.json(response_json_no_extra)
                 except json.JSONDecodeError:
-                    st.error("Failed to parse JSON response without Extra Accuracy.")
-                    logging.error("Failed to parse JSON response without Extra Accuracy.")
+                    with col2:
+                        st.error("Failed to parse JSON response without Extra Accuracy.")
+                        logging.error("Failed to parse JSON response without Extra Accuracy.")
             else:
-                st.error("Request without Extra Accuracy failed.")
-                logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
+                with col2:
+                    st.error("Request without Extra Accuracy failed.")
+                    logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
+
+            # Comparison Table
+            st.subheader("Comparison of OCR Results")
+            if success_extra and success_no_extra:
+                # Assuming both JSONs have similar structures. Adjust the keys as per your actual response structure.
+                comparison_data = []
+                keys = set(response_json_extra.keys()).intersection(response_json_no_extra.keys())
+                for key in keys:
+                    comparison_data.append({
+                        'Field': key,
+                        'With Extra Accuracy': response_json_extra.get(key, "N/A"),
+                        'Without Extra Accuracy': response_json_no_extra.get(key, "N/A")
+                    })
+                
+                if comparison_data:
+                    df_comparison = pd.DataFrame(comparison_data)
+                    # Using st_aggrid for an interactive table
+                    gb = GridOptionsBuilder.from_dataframe(df_comparison)
+                    gb.configure_pagination(paginationAutoPageSize=True)
+                    gb.configure_side_bar()
+                    gb.configure_selection('single')
+                    gridOptions = gb.build()
+                    AgGrid(df_comparison, gridOptions=gridOptions, height=400, theme='light')
+                else:
+                    st.info("No common fields to compare in the OCR results.")
+            else:
+                st.error("Cannot compare results as one or both OCR requests failed.")
 
             if success_extra and success_no_extra:
                 st.success("Both OCR requests completed successfully.")
