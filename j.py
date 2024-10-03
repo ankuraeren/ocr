@@ -57,12 +57,12 @@ if 'active_menu' not in st.session_state:
     st.session_state['active_menu'] = "List Parsers"
 
 def download_parsers_from_github():
-headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
+    headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
 try:
-response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
-response.raise_for_status()  # Raises HTTPError for bad responses
+    response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
+    response.raise_for_status()  # Raises HTTPError for bad responses
 
-content = response.json().get('content')
+    content = response.json().get('content')
 if content:
 with open(LOCAL_PARSERS_FILE, 'wb') as f:
 f.write(base64.b64decode(content))
@@ -700,7 +700,7 @@ else:
             st.session_state['ocr_results']['comparison_results'] = None
             st.session_state['ocr_results']['comparison_table'] = None
 
-    def display_ocr_results():
+def display_ocr_results():
         ocr_results = st.session_state['ocr_results']
         response_extra = ocr_results['response_extra']
         time_taken_extra = ocr_results['time_taken_extra']
