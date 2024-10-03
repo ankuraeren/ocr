@@ -78,7 +78,6 @@ def upload_parsers_to_github():
             content = base64.b64encode(f.read()).decode('utf-8')
 
         current_sha = get_current_sha()
-
         if not current_sha:
             return
 
@@ -371,6 +370,7 @@ def run_parser(parsers):
 
             # Create two columns for side-by-side display
             col1, col2 = st.columns(2)
+
             if success_extra:
                 try:
                     response_json_extra = response_extra.json()
@@ -378,14 +378,10 @@ def run_parser(parsers):
                         with st.expander("Results with Extra Accuracy"):
                             st.json(response_json_extra)
                 except json.JSONDecodeError:
-                    st.error("Failed to parse JSON response with Extra Accuracy.")
-                    logging.error("Failed to parse JSON response with Extra Accuracy.")
                     with col1:
                         st.error("Failed to parse JSON response with Extra Accuracy.")
                         logging.error("Failed to parse JSON response with Extra Accuracy.")
             else:
-                st.error("Request with Extra Accuracy failed.")
-                logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
                 with col1:
                     st.error("Request with Extra Accuracy failed.")
                     logging.error(f"Request with Extra Accuracy failed with status code: {response_extra.status_code}")
@@ -397,11 +393,9 @@ def run_parser(parsers):
                         with st.expander("Results without Extra Accuracy"):
                             st.json(response_json_no_extra)
                 except json.JSONDecodeError:
-                    st.error("Failed to parse JSON response without Extra Accuracy.")
-                    logging.error("Failed to parse JSON response without Extra Accuracy.")
                     with col2:
                         st.error("Failed to parse JSON response without Extra Accuracy.")
-                        logging.error("Failed to parse JSON response without Extra Accuracy.") 
+                        logging.error("Failed to parse JSON response without Extra Accuracy.")
             else:
                 with col2:
                     st.error("Request without Extra Accuracy failed.")
