@@ -35,7 +35,7 @@ LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
 # Initialize parsers dictionary in session state
 # Initialize parsers dictionary and OCR results in session state
 if 'parsers' not in st.session_state:
-st.session_state['parsers'] = {}
+    st.session_state['parsers'] = {}
 
 # Initialize OCR results in session state
 if 'ocr_results' not in st.session_state:
