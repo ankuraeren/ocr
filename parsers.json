@@ -12,19 +12,5 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: Korsf2446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/Main Folder/Slips/1_BOT_RGB _(73).jpg\"' \\\n--form 'parserApp=\"KorsSLPSGacke35o\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"' \\\n--form 'extra_accuracy=\"true\"'"
-    },
-    "a": {
-        "api_key": "b",
-        "parser_app_id": "c",
-        "extra_accuracy": false,
-        "expected_response": "",
-        "sample_curl": ""
-    },
-    "ab": {
-        "api_key": "b",
-        "parser_app_id": "c",
-        "extra_accuracy": false,
-        "expected_response": "",
-        "sample_curl": ""
     }
 }
