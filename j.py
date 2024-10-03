@@ -26,8 +26,8 @@ API_ENDPOINT = st.secrets["api"]["endpoint"]
 LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
 
 # Initialize parsers dictionary in session state
-if 'parsers' not in st.session_state:
-@@ -32,18 +37,35 @@
+    if 'parsers' not in st.session_state:
+        @@ -32,18 +37,35 @@
 
 def download_parsers_from_github():
 headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
