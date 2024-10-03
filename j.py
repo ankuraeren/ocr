@@ -459,26 +459,41 @@ def run_parser(parsers):
                     st.error("Request without Extra Accuracy failed.")
                     logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
 
-            # Comparison Table
-            st.subheader("Comparison of OCR Results")
+            # Comparison JSON
+            st.subheader("Comparison JSON")
             if success_extra and success_no_extra:
-                # Use user's flatten functions
-                comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
-                comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
-
-                if not comparison_table.empty:
-                    gb = GridOptionsBuilder.from_dataframe(comparison_table)
-                    gb.configure_pagination(paginationAutoPageSize=True)
-                    gb.configure_side_bar()
-                    gb.configure_selection('single')
-                    grid_options = gb.build()
-
-                    # Set a valid theme, e.g., 'streamlit'
-                    AgGrid(comparison_table, gridOptions=grid_options, height=500, theme='streamlit', enable_enterprise_modules=True)
-                else:
-                    st.info("No common fields to compare in the OCR results.")
+                try:
+                    comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
+                    st.json(comparison_results)
+                except Exception as e:
+                    st.error(f"Error generating comparison JSON: {e}")
+                    logging.error(f"Error generating comparison JSON: {e}")
             else:
-                st.error("Cannot compare results as one or both OCR requests failed.")
+                st.error("Cannot generate comparison JSON as one or both OCR requests failed.")
+
+            # Comparison Table
+            st.subheader("Comparison Table")
+            if success_extra and success_no_extra:
+                try:
+                    comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
+                    comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
+
+                    if not comparison_table.empty:
+                        gb = GridOptionsBuilder.from_dataframe(comparison_table)
+                        gb.configure_pagination(paginationAutoPageSize=True)
+                        gb.configure_side_bar()
+                        gb.configure_selection('single')
+                        grid_options = gb.build()
+
+                        # Set a valid theme, e.g., 'streamlit'
+                        AgGrid(comparison_table, gridOptions=grid_options, height=500, theme='streamlit', enable_enterprise_modules=True)
+                    else:
+                        st.info("No common fields to compare in the OCR results.")
+                except Exception as e:
+                    st.error(f"Error generating comparison table: {e}")
+                    logging.error(f"Error generating comparison table: {e}")
+            else:
+                st.error("Cannot generate comparison table as one or both OCR requests failed.")
 
             if success_extra and success_no_extra:
                 st.success("Both OCR requests completed successfully.")
