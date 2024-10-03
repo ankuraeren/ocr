@@ -10,6 +10,7 @@ import logging
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 import base64
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -32,9 +33,6 @@ LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
 # Initialize parsers dictionary in session state
 if 'parsers' not in st.session_state:
     st.session_state['parsers'] = {}
-
-if 'refresh' not in st.session_state:
-    st.session_state['refresh'] = False
 
 def download_parsers_from_github():
     headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
@@ -231,6 +229,62 @@ def list_parsers():
                 st.success(f"Parser '{parser_name}' has been deleted.")
                 st.experimental_rerun()  # Changed to rerun for immediate update
 
+def flatten_json(y):
+    """
+    Flatten a nested JSON object.
+    """
+    out = {}
+    order = []
+
+    def flatten(x, name=''):
+        if isinstance(x, dict):
+            for a in x:
+                flatten(x[a], name + a + '.')
+        elif isinstance(x, list):
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + '.')
+                i += 1
+        else:
+            out[name[:-1]] = x
+            order.append(name[:-1])
+    flatten(y)
+    return out, order
+
+def generate_comparison_results(json1, json2):
+    """
+    Generate a new JSON object with tick or cross based on whether attributes match.
+    """
+    flat_json1, order1 = flatten_json(json1)
+    flat_json2, _ = flatten_json(json2)
+
+    comparison_results = {}
+
+    for key in order1:
+        val1 = flat_json1.get(key, "N/A")
+        val2 = flat_json2.get(key, "N/A")
+        match = (val1 == val2)
+        comparison_results[key] = "✔" if match else "✘"
+
+    return comparison_results
+
+def generate_comparison_df(json1, json2, comparison_results):
+    """
+    Generate a DataFrame comparing two JSON objects.
+    """
+    flat_json1, order1 = flatten_json(json1)
+    flat_json2, _ = flatten_json(json2)
+
+    data = []
+    for key in order1:
+        val1 = flat_json1.get(key, "N/A")
+        val2 = flat_json2.get(key, "N/A")
+        match = comparison_results[key]
+        data.append([key, val1, val2, match])
+
+    df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
+    return df
+
 def run_parser(parsers):
     st.subheader("Run OCR Parser")
     if not parsers:
@@ -337,32 +391,35 @@ def run_parser(parsers):
                 except Exception as e:
                     st.error(f"Error opening file {image_path}: {e}")
                     logging.error(f"Error opening file {image_path}: {e}")
-                    return None
+                    return None, 0
 
             try:
+                start_time = time.time()
                 logging.info(f"Sending POST request to {API_ENDPOINT} with Parser App ID: {local_form_data['parserApp']}, Extra Accuracy: {extra_accuracy}")
                 response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=120)
-                logging.info(f"Received response: {response.status_code}")
-                return response
+                time_taken = time.time() - start_time
+                logging.info(f"Received response: {response.status_code} in {time_taken:.2f} seconds")
+                return response, time_taken
             except requests.exceptions.RequestException as e:
                 logging.error(f"Error in API request: {e}")
                 st.error(f"Error in API request: {e}")
-                return None
+                return None, 0
             finally:
                 # Cleanup files
                 for _, file_tuple in files:
                     file_tuple[1].close()
 
         with st.spinner("Processing OCR..."):
-            response_extra = send_request(True)
-            response_no_extra = send_request(False)
+            response_extra, time_taken_extra = send_request(True)
+            response_no_extra, time_taken_no_extra = send_request(False)
 
         # Cleanup temporary directories
         for temp_dir in temp_dirs:
             try:
                 shutil.rmtree(temp_dir)
+                logging.info(f"Cleaned up temporary directory {temp_dir}")
             except Exception as e:
-                logging.error(f"Error removing temp dir {temp_dir}: {e}")
+                logging.warning(f"Could not remove temporary directory {temp_dir}: {e}")
 
         if response_extra and response_no_extra:
             success_extra = response_extra.status_code == 200
@@ -375,8 +432,7 @@ def run_parser(parsers):
                 try:
                     response_json_extra = response_extra.json()
                     with col1:
-                        with st.expander("Results with Extra Accuracy"):
-                            st.json(response_json_extra)
+                        st.expander(f"Results with Extra Accuracy - ⏱ {time_taken_extra:.2f}s").json(response_json_extra)
                 except json.JSONDecodeError:
                     with col1:
                         st.error("Failed to parse JSON response with Extra Accuracy.")
@@ -390,8 +446,7 @@ def run_parser(parsers):
                 try:
                     response_json_no_extra = response_no_extra.json()
                     with col2:
-                        with st.expander("Results without Extra Accuracy"):
-                            st.json(response_json_no_extra)
+                        st.expander(f"Results without Extra Accuracy - ⏱ {time_taken_no_extra:.2f}s").json(response_json_no_extra)
                 except json.JSONDecodeError:
                     with col2:
                         st.error("Failed to parse JSON response without Extra Accuracy.")
@@ -401,32 +456,33 @@ def run_parser(parsers):
                     st.error("Request without Extra Accuracy failed.")
                     logging.error(f"Request without Extra Accuracy failed with status code: {response_no_extra.status_code}")
 
-            # Comparison Table
-            st.subheader("Comparison of OCR Results")
+            # Comparison JSON
+            st.subheader("Comparison JSON")
             if success_extra and success_no_extra:
-                # Assuming both JSONs have similar structures. Adjust the keys as per your actual response structure.
-                comparison_data = []
-                keys = set(response_json_extra.keys()).intersection(response_json_no_extra.keys())
-                for key in keys:
-                    comparison_data.append({
-                        'Field': key,
-                        'With Extra Accuracy': response_json_extra.get(key, "N/A"),
-                        'Without Extra Accuracy': response_json_no_extra.get(key, "N/A")
-                    })
-                
-                if comparison_data:
-                    df_comparison = pd.DataFrame(comparison_data)
-                    # Using st_aggrid for an interactive table
-                    gb = GridOptionsBuilder.from_dataframe(df_comparison)
+                comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
+                st.expander("Comparison JSON").json(comparison_results)
+            else:
+                st.error("Cannot generate Comparison JSON as one or both OCR requests failed.")
+
+            # Comparison Table
+            st.subheader("Comparison Table")
+            if success_extra and success_no_extra:
+                comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
+                comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
+
+                if not comparison_table.empty:
+                    gb = GridOptionsBuilder.from_dataframe(comparison_table)
                     gb.configure_pagination(paginationAutoPageSize=True)
                     gb.configure_side_bar()
                     gb.configure_selection('single')
-                    gridOptions = gb.build()
-                    AgGrid(df_comparison, gridOptions=gridOptions, height=400, theme='light')
+                    grid_options = gb.build()
+
+                    # Use a valid theme, e.g., 'streamlit'
+                    AgGrid(comparison_table, gridOptions=grid_options, height=500, theme='streamlit', enable_enterprise_modules=True)
                 else:
                     st.info("No common fields to compare in the OCR results.")
             else:
-                st.error("Cannot compare results as one or both OCR requests failed.")
+                st.error("Cannot display Comparison Table as one or both OCR requests failed.")
 
             if success_extra and success_no_extra:
                 st.success("Both OCR requests completed successfully.")
