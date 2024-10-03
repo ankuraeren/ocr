@@ -33,5 +33,12 @@
         "extra_accuracy": false,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Accomation  OCR service for Invoice Parsing": {
+        "api_key": "acc2ce-2376-84ba-b1bd-c826482c2534",
+        "parser_app_id": "accinv12bjfsebhj",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
