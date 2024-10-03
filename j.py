@@ -37,50 +37,22 @@ if 'refresh' not in st.session_state:
     st.session_state['refresh'] = False
 
 def download_parsers_from_github():
-    """
-    Download parsers.json from GitHub and load it into session state.
-    """
     headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
-    try:
-        response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
-        response.raise_for_status()  # Raises HTTPError for bad responses
+    response = requests.get(GITHUB_API_URL, headers=headers)
 
+    if response.status_code == 200:
         content = response.json().get('content')
-        if content:
-            with open(LOCAL_PARSERS_FILE, 'wb') as f:
-                f.write(base64.b64decode(content))
-            load_parsers()
-            st.success("`parsers.json` downloaded successfully from GitHub.")
-            logging.info("`parsers.json` downloaded successfully from GitHub.")
-        else:
-            st.error("`parsers.json` content is empty.")
-            logging.error("`parsers.json` content is empty.")
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"HTTP error occurred while downloading `parsers.json`: {http_err}")
-        logging.error(f"HTTP error occurred while downloading `parsers.json`: {http_err}")
-    except requests.exceptions.ConnectionError as conn_err:
-        st.error(f"Connection error occurred while downloading `parsers.json`: {conn_err}")
-        logging.error(f"Connection error occurred while downloading `parsers.json`: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        st.error(f"Timeout error occurred while downloading `parsers.json`: {timeout_err}")
-        logging.error(f"Timeout error occurred while downloading `parsers.json`: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        st.error(f"An error occurred while downloading `parsers.json`: {req_err}")
-        logging.error(f"An error occurred while downloading `parsers.json`: {req_err}")
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
-        logging.error(f"Unexpected error: {e}")
+        with open(LOCAL_PARSERS_FILE, 'wb') as f:
+            f.write(base64.b64decode(content))
+        load_parsers()
+        st.success("parsers.json downloaded successfully from GitHub.")
+        logging.info("parsers.json downloaded successfully from GitHub.")
+    else:
+        st.error("Failed to download parsers.json from GitHub.")
+        logging.error(f"Failed to download parsers.json from GitHub. Status Code: {response.status_code}")
 
 def upload_parsers_to_github():
-    """
-    Upload the updated parsers.json to GitHub.
-    """
     try:
-        if not os.path.exists(LOCAL_PARSERS_FILE):
-            st.error("`parsers.json` file not found locally. Please download it first.")
-            logging.error("`parsers.json` file not found locally.")
-            return
-
         with open(LOCAL_PARSERS_FILE, 'rb') as f:
             content = base64.b64encode(f.read()).decode('utf-8')
 
@@ -88,102 +60,48 @@ def upload_parsers_to_github():
         if not current_sha:
             return
 
-        headers = {
-            'Authorization': f'token {GITHUB_ACCESS_TOKEN}',
-            'Content-Type': 'application/json'
-        }
+        headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}', 'Content-Type': 'application/json'}
         payload = {
             'message': 'Update parsers.json file',
             'content': content,
             'sha': current_sha,
-            'branch': GITHUB_BRANCH
+            'branch': 'main'
         }
 
         response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
-
+        
         if response.status_code in [200, 201]:
-            st.success("`parsers.json` uploaded successfully to GitHub.")
-            logging.info("`parsers.json` uploaded successfully to GitHub.")
+            st.success("parsers.json uploaded successfully to GitHub.")
         else:
             error_message = response.json().get('message', 'Unknown error')
-            st.error(f"Failed to upload `parsers.json` to GitHub: {error_message}")
-            logging.error(f"Failed to upload `parsers.json` to GitHub: {error_message}")
-    except FileNotFoundError:
-        st.error("`parsers.json` file not found locally. Please download it first.")
-        logging.error("`parsers.json` file not found locally.")
+            st.error(f"Failed to upload parsers.json to GitHub: {error_message}")
     except Exception as e:
-        st.error(f"An unexpected error occurred during upload: {e}")
-        logging.error(f"An unexpected error occurred during upload: {e}")
+        st.error(f"An unexpected error occurred: {e}")
 
 def get_current_sha():
-    """
-    Retrieve the current SHA of parsers.json from GitHub.
-    """
     headers = {'Authorization': f'token {GITHUB_ACCESS_TOKEN}'}
-    try:
-        response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
-        response.raise_for_status()
-        sha = response.json().get('sha')
-        if sha:
-            return sha
-        else:
-            st.error("SHA not found for `parsers.json` in GitHub.")
-            logging.error("SHA not found for `parsers.json` in GitHub.")
-            return None
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"HTTP error occurred while fetching SHA: {http_err}")
-        logging.error(f"HTTP error occurred while fetching SHA: {http_err}")
-    except requests.exceptions.ConnectionError as conn_err:
-        st.error(f"Connection error occurred while fetching SHA: {conn_err}")
-        logging.error(f"Connection error occurred while fetching SHA: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        st.error(f"Timeout error occurred while fetching SHA: {timeout_err}")
-        logging.error(f"Timeout error occurred while fetching SHA: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        st.error(f"An error occurred while fetching SHA: {req_err}")
-        logging.error(f"An error occurred while fetching SHA: {req_err}")
-    except Exception as e:
-        st.error(f"Unexpected error while fetching SHA: {e}")
-        logging.error(f"Unexpected error while fetching SHA: {e}")
-    return None
+    response = requests.get(GITHUB_API_URL, headers=headers)
+
+    if response.status_code == 200:
+        return response.json().get('sha')
+    else:
+        st.error("Failed to get current file SHA from GitHub.")
+        return None
 
 def load_parsers():
-    """
-    Load parsers from the local parsers.json file into session state.
-    """
     if os.path.exists(LOCAL_PARSERS_FILE):
-        try:
-            with open(LOCAL_PARSERS_FILE, 'r') as f:
+        with open(LOCAL_PARSERS_FILE, 'r') as f:
+            try:
                 st.session_state['parsers'] = json.load(f)
-            logging.info("`parsers.json` loaded into session state.")
-            st.success("`parsers.json` loaded successfully.")
-        except json.JSONDecodeError:
-            st.error("`parsers.json` is corrupted or not in valid JSON format.")
-            logging.error("`parsers.json` is corrupted or not in valid JSON format.")
-        except Exception as e:
-            st.error(f"Unexpected error while loading `parsers.json`: {e}")
-            logging.error(f"Unexpected error while loading `parsers.json`: {e}")
-    else:
-        st.error("`parsers.json` does not exist locally. Please download it from GitHub.")
-        logging.error("`parsers.json` does not exist locally.")
+            except json.JSONDecodeError:
+                st.error("parsers.json is corrupted or not in valid JSON format.")
 
 def save_parsers():
-    """
-    Save the parsers from session state to the local parsers.json file.
-    """
-    try:
-        with open(LOCAL_PARSERS_FILE, 'w') as f:
-            json.dump(st.session_state['parsers'], f, indent=4)
-        st.success("`parsers.json` has been updated locally. Please upload it back to GitHub.")
-        logging.info("`parsers.json` has been updated locally.")
-    except Exception as e:
-        st.error(f"Failed to save `parsers.json` locally: {e}")
-        logging.error(f"Failed to save `parsers.json` locally: {e}")
+    with open(LOCAL_PARSERS_FILE, 'w') as f:
+        json.dump(st.session_state['parsers'], f, indent=4)
+    st.success("parsers.json has been updated locally. Please upload it back to GitHub.")
 
 def add_new_parser():
-    """
-    Form to add a new OCR parser.
-    """
     st.subheader("Add a New Parser")
     with st.form("add_parser_form"):
         parser_name = st.text_input("Parser Name").strip()
@@ -215,13 +133,10 @@ def add_new_parser():
                     'sample_curl': sample_curl
                 }
                 save_parsers()
-                st.success("The parser has been added successfully.")
+                st.info("The parser has been added successfully.")
                 st.experimental_set_query_params(refresh='true')
 
 def list_parsers():
-    """
-    List all existing OCR parsers.
-    """
     st.subheader("List of All Parsers")
     if not st.session_state['parsers']:
         st.info("No parsers available. Please add a parser first.")
@@ -247,8 +162,7 @@ def list_parsers():
             else:
                 st.write("N/A")
             
-            delete_button = st.button(f"Delete {parser_name}", key=f"delete_{parser_name}")
-            if delete_button:
+            if st.button(f"Delete {parser_name}", key=f"delete_{parser_name}"):
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
