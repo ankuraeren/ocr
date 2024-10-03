@@ -101,5 +101,3 @@ typing_extensions==4.12.2
 tzdata==2024.2
 uritemplate==4.1.1
 urllib3==2.2.3
-pdf2image==1.17.0
-st_aggrid==0.4.7
