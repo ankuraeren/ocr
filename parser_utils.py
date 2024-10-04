@@ -1,13 +1,23 @@
 import os
+import json
 import base64
 import requests
 import tempfile
 import logging
 import streamlit as st
 
+# Define the local file path for the parsers.json
 LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
 
+# GitHub Configuration
+GITHUB_REPO = 'ankuraeren/ocr'  # Your GitHub repo name
+GITHUB_BRANCH = 'main'  # Define the branch
+GITHUB_FILE_PATH = 'parsers.json'  # Path to the parsers.json file in GitHub
+GITHUB_API_URL = f'https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}?ref={GITHUB_BRANCH}'
+
+
 def download_parsers_from_github():
+    """Downloads the parsers.json file from GitHub and loads it into the session state."""
     headers = {'Authorization': f'token {st.secrets["github"]["access_token"]}'}
     try:
         response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
@@ -25,16 +35,73 @@ def download_parsers_from_github():
         st.error(f"Error: {e}")
 
 
+def load_parsers():
+    """Loads the parsers.json file from the local file to session state."""
+    try:
+        if os.path.exists(LOCAL_PARSERS_FILE):
+            with open(LOCAL_PARSERS_FILE, 'r') as f:
+                st.session_state['parsers'] = json.load(f)
+        else:
+            st.session_state['parsers'] = {}
+    except Exception as e:
+        st.error(f"Error loading parsers: {e}")
 
 
 def save_parsers():
+    """Saves the current parsers in session state to the local file."""
     try:
         with open(LOCAL_PARSERS_FILE, 'w') as f:
             json.dump(st.session_state['parsers'], f, indent=4)
     except Exception as e:
         st.error(f"Error: {e}")
 
+
+def update_parsers_to_github():
+    """Uploads the updated parsers.json to GitHub."""
+    headers = {
+        'Authorization': f'token {st.secrets["github"]["access_token"]}',
+        'Content-Type': 'application/json'
+    }
+    try:
+        # Get the current sha of the file (required for updating in GitHub)
+        sha = get_current_sha()
+        if not sha:
+            return
+
+        with open(LOCAL_PARSERS_FILE, 'rb') as f:
+            content = base64.b64encode(f.read()).decode('utf-8')
+
+        payload = {
+            'message': 'Update parsers.json file',
+            'content': content,
+            'sha': sha,
+            'branch': GITHUB_BRANCH
+        }
+
+        response = requests.put(GITHUB_API_URL, headers=headers, json=payload)
+
+        if response.status_code in [200, 201]:
+            st.success("`parsers.json` uploaded successfully to GitHub.")
+        else:
+            st.error(f"Failed to upload `parsers.json`: {response.text}")
+    except Exception as e:
+        st.error(f"Error uploading parsers: {e}")
+
+
+def get_current_sha():
+    """Fetches the current SHA (commit hash) of the parsers.json file in GitHub."""
+    headers = {'Authorization': f'token {st.secrets["github"]["access_token"]}'}
+    try:
+        response = requests.get(GITHUB_API_URL, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.json().get('sha')
+    except Exception as e:
+        st.error(f"Error fetching SHA: {e}")
+        return None
+
+
 def add_new_parser():
+    """Adds a new parser to the session state and saves it."""
     st.subheader("Add a New Parser")
     with st.form("add_parser_form"):
         parser_name = st.text_input("Parser Name").strip()
@@ -61,7 +128,9 @@ def add_new_parser():
                 save_parsers()
                 st.success("The parser has been added successfully.")
 
+
 def list_parsers():
+    """Lists all the parsers available in the session state."""
     st.subheader("List of All Parsers")
     if not st.session_state['parsers']:
         st.info("No parsers available. Please add a parser first.")
@@ -87,4 +156,12 @@ def list_parsers():
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
+
+
+# Additional functionality for uploading updated parsers
+def update_parsers():
+    """Triggers the upload of updated parsers to GitHub."""
+    if st.button("Update Parsers File"):
+        save_parsers()
+        update_parsers_to_github()
 
