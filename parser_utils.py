@@ -69,7 +69,7 @@ def list_parsers():
 
     for parser_name, details in st.session_state['parsers'].items():
         with st.expander(parser_name):
-            st.write(f"**API Key:** {details['api_key']}")
+            # Don't display API Key
             st.write(f"**Parser App ID:** {details['parser_app_id']}")
             st.write(f"**Extra Accuracy:** {'Yes' if details['extra_accuracy'] else 'No'}")
             st.write(f"**Expected Response:**")
@@ -81,7 +81,10 @@ def list_parsers():
             st.write(f"**Sample CURL Request:**")
             if details['sample_curl']:
                 st.code(details['sample_curl'], language='bash')
+
+            # Option to delete parser
             if st.button(f"Delete {parser_name}", key=f"delete_{parser_name}"):
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
+
