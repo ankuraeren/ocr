@@ -47,5 +47,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Jeena Logistics": {
+        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
+        "parser_app_id": "Jeetrynp0234Ob1o",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: '5d262446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/23.9.24/24-2502788.pdf\"' \\\n--form 'parserApp=\"acconihbjfsebhjk\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"' \\\n--form 'extra_accuracy=\"true\"'"
     }
 }
