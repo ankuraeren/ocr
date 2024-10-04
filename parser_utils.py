@@ -131,21 +131,24 @@ def add_new_parser():
 
 def list_parsers():
     st.subheader("List of All Parsers")
+    
+    # Check if parsers exist in session state
     if not st.session_state['parsers']:
         st.info("No parsers available. Please add a parser first.")
         return
 
-    for parser_name in st.session_state['parsers'].keys():
-        # Display parser name and add delete button
-        col1, col2 = st.columns([0.8, 0.2])
-        with col1:
-            st.write(parser_name)
-        with col2:
+    # Loop through parsers and display only the name, extra accuracy status, and delete option
+    for parser_name, details in st.session_state['parsers'].items():
+        with st.expander(parser_name):
+            st.write(f"**Extra Accuracy:** {'Yes' if details['extra_accuracy'] else 'No'}")
+            
+            # Add delete button for each parser
             if st.button(f"Delete {parser_name}", key=f"delete_{parser_name}"):
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
-                st.experimental_rerun()  # Immediately refresh the list after deletion
+                st.experimental_rerun()  # Ensure the UI updates immediately
+
 
 
 # Additional functionality for uploading updated parsers
