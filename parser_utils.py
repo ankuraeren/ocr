@@ -82,7 +82,7 @@ def list_parsers():
             st.write(f"**Extra Accuracy:** {'Yes' if details['extra_accuracy'] else 'No'}")
 
             app_id_num = app_id_count[details['parser_app_id']]  # Get the number associated with parser_app_id
-            parser_page_link = f"https://ocrtesting-csxcl7uybqbmwards96kjo.streamlit.app/?parser={quote(parser_name)}&client=true&id={app_id_num}"
+            parser_page_link = f"https://fracto-ocr.streamlit.app/?parser={quote(parser_name)}&client=true&id={app_id_num}"
 
             # Generate and display link button
             if st.button(f"Generate Parser Page for {parser_name}", key=f"generate_{parser_name}"):
