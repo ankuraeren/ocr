@@ -2,6 +2,7 @@ import streamlit as st
 from github_utils import download_parsers_from_github, upload_parsers_to_github
 from parser_utils import add_new_parser, list_parsers
 from ocr_runner import run_parser
+from urllib.parse import parse_qs
 
 # Ensure session state is initialized
 if 'parsers' not in st.session_state:
@@ -11,7 +12,17 @@ def main():
     # Set page config
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
 
-    # Add custom CSS for radio buttons
+    # Get URL parameters (e.g., parser and client flag)
+    query_params = st.experimental_get_query_params()
+    requested_parser = query_params.get("parser", [None])[0]
+    client_view = query_params.get("client", [False])[0]
+
+    # Ensure parsers are loaded once when the app starts
+    if 'loaded' not in st.session_state:
+        download_parsers_from_github()
+        st.session_state.loaded = True
+
+    # Add custom CSS for the sidebar radio buttons (styled similarly to the run parser page)
     st.markdown("""
         <style>
         .stRadio [role=radiogroup] {
@@ -44,7 +55,17 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # App title and sidebar options
+    # Client View: Display the Run Parser page for a specific parser
+    if client_view and requested_parser:
+        if requested_parser in st.session_state['parsers']:
+            st.title(f"Run Parser: {requested_parser}")
+            parser_details = st.session_state['parsers'][requested_parser]
+            run_parser({requested_parser: parser_details})
+        else:
+            st.error("This parser no longer exists. Please contact support.")
+        return
+
+    # Internal Team View: Normal app with navigation
     st.title("📄 FRACTO OCR Parser Web App")
     
     st.sidebar.header("Navigation")
@@ -57,14 +78,9 @@ def main():
         </ul>
     """, unsafe_allow_html=True)
 
-    # Radio button menu
+    # Radio button menu with custom style
     menu = ["List Parsers", "Run Parser", "Add Parser"]
     choice = st.sidebar.radio("Menu", menu)
-
-    # Ensure parsers are loaded once when the app starts
-    if 'loaded' not in st.session_state:
-        download_parsers_from_github()  # This will also call load_parsers internally
-        st.session_state.loaded = True
 
     # Menu options
     if choice == "Add Parser":
