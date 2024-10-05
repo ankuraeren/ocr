@@ -2,7 +2,7 @@ import streamlit as st
 from github_utils import download_parsers_from_github, upload_parsers_to_github
 from parser_utils import add_new_parser, list_parsers
 from ocr_runner import run_parser
-from urllib.parse import parse_qs
+from urllib.parse import quote
 
 # Ensure session state is initialized
 if 'parsers' not in st.session_state:
@@ -21,39 +21,6 @@ def main():
     if 'loaded' not in st.session_state:
         download_parsers_from_github()
         st.session_state.loaded = True
-
-    # Add custom CSS for the sidebar radio buttons (styled similarly to the run parser page)
-    st.markdown("""
-        <style>
-        .stRadio [role=radiogroup] {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        div[role='radiogroup'] label div[data-testid='stMarkdownContainer'] {
-            font-size: 18px;
-            font-weight: bold;
-            color: #FFFFFF;
-        }
-        div[role='radiogroup'] label {
-            background-color: #2B2B2B;
-            padding: 10px 15px;
-            border-radius: 12px;
-            border: 1px solid #3B3B3B;
-            cursor: pointer;
-        }
-        div[role='radiogroup'] label:hover {
-            background-color: #474747;
-        }
-        div[role='radiogroup'] input[type='radio']:checked + label {
-            background-color: #FF5F5F;
-            border-color: #FF5F5F;
-        }
-        div[role='radiogroup'] input[type='radio']:checked + label div[data-testid='stMarkdownContainer'] {
-            color: #FFFFFF;
-        }
-        </style>
-    """, unsafe_allow_html=True)
 
     # Client View: Display the Run Parser page for a specific parser
     if client_view and requested_parser:
