@@ -16,8 +16,26 @@ def main():
     # Set page config
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
 
-    # Check if the user is logged in
-    if not st.session_state['logged_in']:
+    # Get URL parameters (e.g., parser and client flag)
+    query_params = st.experimental_get_query_params()
+    requested_parser = query_params.get("parser", [None])[0]
+    client_view = query_params.get("client", [False])[0]
+
+    # Client View: Display the Run Parser page for a specific parser (password-free)
+    if client_view and requested_parser:
+        if requested_parser in st.session_state['parsers']:
+            st.title(f"Run Parser: {requested_parser}")
+            parser_details = st.session_state['parsers'][requested_parser]
+            run_parser({requested_parser: parser_details})
+        else:
+            st.error("This parser no longer exists. Please contact support.")
+        return
+
+    # Internal Team View: Check for the correct name
+    st.title("📄 FRACTO OCR Parser Web App")
+
+    # If it's the internal page and user is not logged in, show login prompt
+    if not client_view and not st.session_state['logged_in']:
         # Ask for the user's name with masked input
         name = st.text_input("What is your name?", type="password")
 
@@ -29,14 +47,9 @@ def main():
             st.warning("Incorrect name. Please try again.")
             return
 
-    # Only proceed if the user is logged in
-    if not st.session_state['logged_in']:
+    # Only proceed if the user is logged in (for internal views)
+    if not client_view and not st.session_state['logged_in']:
         return
-
-    # Get URL parameters (e.g., parser and client flag)
-    query_params = st.experimental_get_query_params()
-    requested_parser = query_params.get("parser", [None])[0]
-    client_view = query_params.get("client", [False])[0]
 
     # Ensure parsers are loaded once when the app starts
     if 'loaded' not in st.session_state:
@@ -76,19 +89,7 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # Client View: Display the Run Parser page for a specific parser
-    if client_view and requested_parser:
-        if requested_parser in st.session_state['parsers']:
-            st.title(f"Run Parser: {requested_parser}")
-            parser_details = st.session_state['parsers'][requested_parser]
-            run_parser({requested_parser: parser_details})
-        else:
-            st.error("This parser no longer exists. Please contact support.")
-        return
-
     # Internal Team View: Normal app with navigation after name validation
-    st.title("📄 FRACTO OCR Parser Web App")
-
     st.sidebar.header("Navigation")
     st.sidebar.markdown("""
         <p>This app provides functionalities for:</p>
