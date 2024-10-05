@@ -8,6 +8,10 @@ from urllib.parse import parse_qs
 if 'parsers' not in st.session_state:
     st.session_state['parsers'] = {}
 
+# Ensure user login status is stored in session state
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+
 def main():
     # Set page config
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
@@ -68,11 +72,20 @@ def main():
     # Internal Team View: Check for the correct name
     st.title("📄 FRACTO OCR Parser Web App")
 
-    # Ask for the user's name as an entry point
-    name = st.text_input("What is your name?")
-    if name != "Charulata":
-        st.warning("Access restricted. Please enter the correct name.")
-        return
+    # Check if the user is logged in
+    if not st.session_state['logged_in']:
+        # Ask for the user's name with masked input
+        name = st.text_input("What is your name?", type="password")
+
+        # Case-insensitive check for the correct name
+        if name and name.lower() == "charulata".lower():
+            st.session_state['logged_in'] = True
+            st.success("Login successful!")
+        elif name:
+            st.warning("Incorrect name. Please try again.")
+            return
+    else:
+        st.success("Welcome, Charulata!")
 
     # Internal Team View: Normal app with navigation after name validation
     st.sidebar.header("Navigation")
