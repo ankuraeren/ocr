@@ -46,6 +46,11 @@ def run_parser(parsers):
         div[role='radiogroup'] input[type='radio']:checked + label div[data-testid='stMarkdownContainer'] {
             color: #FFFFFF;
         }
+
+        /* Hide the 200MB file size limit text */
+        div[title~="Limit"] {
+            display: none !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
