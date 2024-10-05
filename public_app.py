@@ -16,6 +16,23 @@ def main():
     # Set page config
     st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
 
+    # Check if the user is logged in
+    if not st.session_state['logged_in']:
+        # Ask for the user's name with masked input
+        name = st.text_input("What is your name?", type="password")
+
+        # Case-insensitive check for the correct name
+        if name and name.lower() == "charulata".lower():
+            st.session_state['logged_in'] = True
+            st.success("Login successful!")
+        elif name:
+            st.warning("Incorrect name. Please try again.")
+            return
+
+    # Only proceed if the user is logged in
+    if not st.session_state['logged_in']:
+        return
+
     # Get URL parameters (e.g., parser and client flag)
     query_params = st.experimental_get_query_params()
     requested_parser = query_params.get("parser", [None])[0]
@@ -69,25 +86,9 @@ def main():
             st.error("This parser no longer exists. Please contact support.")
         return
 
-    # Internal Team View: Check for the correct name
+    # Internal Team View: Normal app with navigation after name validation
     st.title("📄 FRACTO OCR Parser Web App")
 
-    # Check if the user is logged in
-    if not st.session_state['logged_in']:
-        # Ask for the user's name with masked input
-        name = st.text_input("What is your name?", type="password")
-
-        # Case-insensitive check for the correct name
-        if name and name.lower() == "charulata".lower():
-            st.session_state['logged_in'] = True
-            st.success("Login successful!")
-        elif name:
-            st.warning("Incorrect name. Please try again.")
-            return
-    else:
-        st.success("Welcome, Charulata!")
-
-    # Internal Team View: Normal app with navigation after name validation
     st.sidebar.header("Navigation")
     st.sidebar.markdown("""
         <p>This app provides functionalities for:</p>
