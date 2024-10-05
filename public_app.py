@@ -21,8 +21,19 @@ def main():
     requested_parser = query_params.get("parser", [None])[0]
     client_view = query_params.get("client", [False])[0]
 
+    # Ensure parsers are loaded once when the app starts
+    if 'loaded' not in st.session_state:
+        download_parsers_from_github()
+        st.session_state.loaded = True
+
     # Client View: Display the Run Parser page for a specific parser (password-free)
     if client_view and requested_parser:
+        # Ensure parsers are loaded
+        if not st.session_state['parsers']:
+            # Load parsers into session state
+            download_parsers_from_github()
+
+        # Check if the requested parser exists in session state
         if requested_parser in st.session_state['parsers']:
             st.title(f"Run Parser: {requested_parser}")
             parser_details = st.session_state['parsers'][requested_parser]
@@ -50,11 +61,6 @@ def main():
     # Only proceed if the user is logged in (for internal views)
     if not client_view and not st.session_state['logged_in']:
         return
-
-    # Ensure parsers are loaded once when the app starts
-    if 'loaded' not in st.session_state:
-        download_parsers_from_github()
-        st.session_state.loaded = True
 
     # Add custom CSS for the sidebar radio buttons (styled similarly to the run parser page)
     st.markdown("""
