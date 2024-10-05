@@ -61,7 +61,7 @@ def run_parser(parsers):
     temp_dirs = []
 
     # File uploader
-    uploaded_files = st.file_uploader("Choose image or PDF file(s)...", type=["jpg", "jpeg", "png", "bmp", "gif", "tiff", "pdf"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Choose image or PDF file(s)...", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=False)
     if uploaded_files:
         for uploaded_file in uploaded_files:
             try:
