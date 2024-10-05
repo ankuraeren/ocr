@@ -54,7 +54,14 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: '5d262446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/23.9.24/24-2502788.pdf\"' \\\n--form 'parserApp=\"acconihbjfsebhjk\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"' \\\n--form 'extra_accuracy=\"true\"'"
-    }
+    },
+    "Think Walnut": {
+        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
+        "parser_app_id": "WALYGOG42jbfd1on",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": "--header 'x-api-key: 5d262446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/C:/Users/lalit/Downloads/STL_MHSC_871_Maharashtra_177521686984_06-Sep.pdf\"' \\\n--form 'parserApp=\"WALYGOG42jbfd1on\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"' \\\n--form 'extra_accuracy=\"true\"'"
+    },
     "121 Finance Ledger Parser": {
         "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
         "parser_app_id": "FINGPd14ff112",
@@ -68,19 +75,5 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: Korsf2446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/Main Folder/Slips/1BOT_RGB_RGB (73).jpg\"' \\\n--form 'parserApp=\"KorsSLPSGacke35o\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"' \\\n--form 'extra_accuracy=\"true\"'"
-    },
-    "Shapoorji Invoice Parser": {
-        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
-        "parser_app_id": "Shap121pLed14ff1",
-        "extra_accuracy": true,
-        "expected_response": "",
-        "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: '5d262446-4cfa-408b-86ef-04ad876bf2fc' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/BMPL0110 Eway bill.pdf\"' \\\n--form 'parserApp=\"Shap121pLed14ff1\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"'"
-    },
-    "Prudent Visiting Cards": {
-        "api_key": "carddsfJonihbjfs",
-        "parser_app_id": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
-        "extra_accuracy": true,
-        "expected_response": "",
-        "sample_curl": "curl --location 'https://prod-ml.fracto.tech/upload-file-smart-ocr' \\\n--header 'x-api-key: '5d262446-4cfa-408b-86ef-04ad876bf2fc4' \\\n--form 'file=@\"/Users/gagankapoor/Downloads/WhatsApp Image 2024-08-29 at 12.37.26.jpeg\"' \\\n--form 'parserApp=\"carddsfJonihbjfs\"' \\\n--form 'user_ip=\"127.0.0.1\"' \\\n--form 'location=\"delhi\"' \\\n--form 'user_agent=\"Dummy-device-testing11\"'"
     }
 }
