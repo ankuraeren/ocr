@@ -100,35 +100,20 @@ def list_parsers():
         st.info("No parsers available. Please add a parser first.")
         return
 
-    # Count parser_app_id occurrences for dynamic numbering
-    app_id_count = {}
-    for parser_name, details in st.session_state['parsers'].items():
-        app_id = details['parser_app_id']
-        if app_id in app_id_count:
-            app_id_count[app_id] += 1
-        else:
-            app_id_count[app_id] = 1
-
     # Iterate over the parsers and display details
     for parser_name, details in st.session_state['parsers'].items():
         with st.expander(parser_name):
             st.write(f"**Parser App ID:** {details['parser_app_id']}")
             st.write(f"**Extra Accuracy:** {'Yes' if details['extra_accuracy'] else 'No'}")
 
-            # Generate parser page link using the parser name
-            parser_page_link = f"https://fracto-ocr.streamlit.app/{quote(parser_name.lower().replace(' ', '-'))}-parser"
+            # Generate dynamic parser page link using URL parameters
+            parser_page_link = f"https://fracto-ocr.streamlit.app/?parser={quote(parser_name)}&client=true"
 
             # Display link button
-            if st.button(f"Generate Parser Page for {parser_name}", key=f"generate_{parser_name}"):
-                generate_parser_page(parser_name, details)
-                st.write(f"**Parser Page Link:** [Click Here]({parser_page_link})")
+            st.write(f"**Parser Page Link:** [Click Here]({parser_page_link})")
             
             # Add Delete button
             if st.button(f"Delete {parser_name}", key=f"delete_{parser_name}"):
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
-                # Optionally, delete the page file
-                page_file = os.path.join(PAGES_DIRECTORY, f"{parser_name.lower().replace(' ', '-')}_parser.py")
-                if os.path.exists(page_file):
-                    os.remove(page_file)
