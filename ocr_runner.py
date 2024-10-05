@@ -60,36 +60,38 @@ def run_parser(parsers):
     file_paths = []
     temp_dirs = []
 
-    # File uploader
+    # File uploader with file size limit
     uploaded_files = st.file_uploader("Choose image or PDF file(s)...", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=False)
     if uploaded_files:
-        for uploaded_file in uploaded_files:
-            try:
-                if uploaded_file.type == "application/pdf":
-                    # Handle PDF files
-                    temp_dir = tempfile.mkdtemp()
-                    temp_dirs.append(temp_dir)
-                    pdf_path = os.path.join(temp_dir, uploaded_file.name)
+        if uploaded_files.size > 20 * 1024 * 1024:  # 20 MB limit
+            st.error("File size exceeds the 20 MB limit. Please upload a smaller file.")
+            return
+        try:
+            if uploaded_files.type == "application/pdf":
+                # Handle PDF files
+                temp_dir = tempfile.mkdtemp()
+                temp_dirs.append(temp_dir)
+                pdf_path = os.path.join(temp_dir, uploaded_files.name)
 
-                    with open(pdf_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+                with open(pdf_path, "wb") as f:
+                    f.write(uploaded_files.getbuffer())
 
-                    # Display PDF filename
-                    st.markdown(f"**Uploaded PDF:** {uploaded_file.name}")
-                    file_paths.append(pdf_path)
+                # Display PDF filename
+                st.markdown(f"**Uploaded PDF:** {uploaded_files.name}")
+                file_paths.append(pdf_path)
 
-                else:
-                    # Handle image files
-                    image = Image.open(uploaded_file)
-                    st.image(image, caption=uploaded_file.name, use_column_width=True)
-                    temp_dir = tempfile.mkdtemp()
-                    temp_dirs.append(temp_dir)
-                    image_path = os.path.join(temp_dir, uploaded_file.name)
-                    image.save(image_path)
-                    file_paths.append(image_path)
+            else:
+                # Handle image files
+                image = Image.open(uploaded_files)
+                st.image(image, caption=uploaded_files.name, use_column_width=True)
+                temp_dir = tempfile.mkdtemp()
+                temp_dirs.append(temp_dir)
+                image_path = os.path.join(temp_dir, uploaded_files.name)
+                image.save(image_path)
+                file_paths.append(image_path)
 
-            except Exception as e:
-                st.error(f"Error processing file {uploaded_file.name}: {e}")
+        except Exception as e:
+            st.error(f"Error processing file {uploaded_files.name}: {e}")
 
     # Run OCR button
     if st.button("Run OCR"):
