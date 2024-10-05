@@ -65,9 +65,16 @@ def main():
             st.error("This parser no longer exists. Please contact support.")
         return
 
-    # Internal Team View: Normal app with navigation
+    # Internal Team View: Check for the correct name
     st.title("📄 FRACTO OCR Parser Web App")
-    
+
+    # Ask for the user's name as an entry point
+    name = st.text_input("What is your name?")
+    if name != "Charulata":
+        st.warning("Access restricted. Please enter the correct name.")
+        return
+
+    # Internal Team View: Normal app with navigation after name validation
     st.sidebar.header("Navigation")
     st.sidebar.markdown("""
         <p>This app provides functionalities for:</p>
