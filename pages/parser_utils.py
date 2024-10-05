@@ -8,6 +8,11 @@ import streamlit as st
 from urllib.parse import quote
 
 LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
+PAGES_DIRECTORY = 'pages'
+
+# Ensure pages directory exists
+if not os.path.exists(PAGES_DIRECTORY):
+    os.makedirs(PAGES_DIRECTORY)
 
 # Function to download parsers from GitHub
 def download_parsers_from_github():
@@ -63,6 +68,28 @@ def add_new_parser():
                 save_parsers()
                 st.success("The parser has been added successfully.")
 
+# Function to generate parser page file
+def generate_parser_page(parser_name, details):
+    file_name = f"{parser_name.lower().replace(' ', '_')}_parser.py"
+    file_path = os.path.join(PAGES_DIRECTORY, file_name)
+    page_content = f"""
+import streamlit as st
+
+def main():
+    st.set_page_config(page_title="{parser_name} - Parser", layout="wide")
+    st.title("{parser_name} Parser")
+    st.write("Parser App ID: {details['parser_app_id']}")
+    st.write("Extra Accuracy: {'Yes' if details['extra_accuracy'] else 'No'}")
+
+    # Additional parser running logic can be added here
+
+if __name__ == "__main__":
+    main()
+    """
+    # Write the page content to the file
+    with open(file_path, 'w') as f:
+        f.write(page_content)
+
 # Function to list all parsers
 def list_parsers():
     st.subheader("List of All Parsers")
@@ -86,10 +113,11 @@ def list_parsers():
             st.write(f"**Extra Accuracy:** {'Yes' if details['extra_accuracy'] else 'No'}")
 
             app_id_num = app_id_count[details['parser_app_id']]  # Get the number associated with parser_app_id
-            parser_page_link = f"https://fracto-ocr.streamlit.app/{quote(parser_name.lower().replace(' ', '-'))}-parser"
+            parser_page_link = f"https://fracto-ocr.streamlit.app/pages/{parser_name.lower().replace(' ', '_')}_parser"
 
             # Generate and display link button
             if st.button(f"Generate Parser Page for {parser_name}", key=f"generate_{parser_name}"):
+                generate_parser_page(parser_name, details)
                 st.write(f"**Parser Page Link:** [Click Here]({parser_page_link})")
             
             # Add Delete button
@@ -97,3 +125,5 @@ def list_parsers():
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
+                # Optionally, delete the page file
+                os.remove(os.path.join(PAGES_DIRECTORY, f"{parser_name.lower().replace(' ', '_')}_parser.py"))
