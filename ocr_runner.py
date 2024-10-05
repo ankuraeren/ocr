@@ -60,8 +60,16 @@ def run_parser(parsers):
     file_paths = []
     temp_dirs = []
 
+    # Add a note to the user about the file size limit
+    st.markdown("**Note:** Please upload an image or PDF file not exceeding **20MB**.")
+
     # File uploader with file size limit
-    uploaded_files = st.file_uploader("Choose image or PDF file(s)...", type=["jpg", "jpeg", "png", "pdf"], accept_multiple_files=False)
+    uploaded_files = st.file_uploader(
+        "Choose image or PDF file(s)... (Limit 20MB per file)", 
+        type=["jpg", "jpeg", "png", "pdf"], 
+        accept_multiple_files=False
+    )
+    
     if uploaded_files:
         if uploaded_files.size > 20 * 1024 * 1024:  # 20 MB limit
             st.error("File size exceeds the 20 MB limit. Please upload a smaller file.")
@@ -179,3 +187,4 @@ def run_parser(parsers):
 
             else:
                 st.error("Comparison failed. One or both requests were unsuccessful.")
+
