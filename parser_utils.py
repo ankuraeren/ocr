@@ -5,8 +5,31 @@ import tempfile
 import logging
 import streamlit as st
 from urllib.parse import quote
+import json
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 LOCAL_PARSERS_FILE = os.path.join(tempfile.gettempdir(), 'parsers.json')
+GITHUB_API_URL = "https://api.github.com/repos/your-repo/parsers.json"  # Replace with your actual URL
+
+def load_parsers():
+    if os.path.exists(LOCAL_PARSERS_FILE):
+        try:
+            with open(LOCAL_PARSERS_FILE, 'r') as f:
+                st.session_state['parsers'] = json.load(f)
+            logging.info("Parsers loaded successfully.")
+        except json.JSONDecodeError:
+            st.error("Error decoding `parsers.json`. The file might be corrupted.")
+            st.session_state['parsers'] = {}
+            logging.error("JSON decode error while loading parsers.")
+        except Exception as e:
+            st.error(f"Unexpected error loading parsers: {e}")
+            st.session_state['parsers'] = {}
+            logging.error(f"Unexpected error loading parsers: {e}")
+    else:
+        st.session_state['parsers'] = {}
+        logging.info("No existing parsers found. Initialized with empty parsers.")
 
 def download_parsers_from_github():
     headers = {'Authorization': f'token {st.secrets["github"]["access_token"]}'}
@@ -18,19 +41,23 @@ def download_parsers_from_github():
         if content:
             with open(LOCAL_PARSERS_FILE, 'wb') as f:
                 f.write(base64.b64decode(content))
-            load_parsers()  # Call the function after downloading
+            load_parsers()  # Refresh the session state with the newly downloaded parsers
             st.success("`parsers.json` downloaded successfully from GitHub.")
         else:
             st.error("`parsers.json` content is empty.")
+            logging.error("Downloaded `parsers.json` is empty.")
     except Exception as e:
         st.error(f"Error: {e}")
+        logging.error(f"Error downloading parsers from GitHub: {e}")
 
 def save_parsers():
     try:
         with open(LOCAL_PARSERS_FILE, 'w') as f:
             json.dump(st.session_state['parsers'], f, indent=4)
+        logging.info("Parsers saved successfully.")
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error saving parsers: {e}")
+        logging.error(f"Error saving parsers: {e}")
 
 def add_new_parser():
     st.subheader("Add a New Parser")
@@ -93,3 +120,20 @@ def list_parsers():
                 del st.session_state['parsers'][parser_name]
                 save_parsers()
                 st.success(f"Parser '{parser_name}' has been deleted.")
+
+# Initialize session state
+if 'parsers' not in st.session_state:
+    load_parsers()
+
+# Streamlit UI
+st.title("Parser Management Dashboard")
+
+menu = ["Add New Parser", "List Parsers", "Download Parsers from GitHub"]
+choice = st.sidebar.selectbox("Menu", menu)
+
+if choice == "Add New Parser":
+    add_new_parser()
+elif choice == "List Parsers":
+    list_parsers()
+elif choice == "Download Parsers from GitHub":
+    download_parsers_from_github()
