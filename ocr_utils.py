@@ -1,7 +1,7 @@
 import streamlit as st
 from github_utils import download_parsers_from_github, upload_parsers_to_github
 from parser_utils import add_new_parser, list_parsers
-from ocr_runner import run_parser
+# from ocr_runner import run_parser
 
 # Ensure session state is initialized
 if 'parsers' not in st.session_state:
