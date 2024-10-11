@@ -4,7 +4,7 @@ import shutil
 import streamlit as st
 from PIL import Image
 from PyPDF2 import PdfReader
-# from ocr_utils import send_request, generate_comparison_results, generate_comparison_df, generate_mismatch_df
+from ocr_utils import send_request, generate_comparison_results, generate_comparison_df, generate_mismatch_df
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Main OCR parser function
