@@ -252,3 +252,4 @@ def run_parser(parsers):
                 st.error("Comparison failed. One or both requests were unsuccessful.")
         else:
             st.error("Comparison failed. One or both requests were unsuccessful.")
+
