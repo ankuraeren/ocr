@@ -1,3 +1,5 @@
+# ocr_utils.py
+
 import os
 import json
 import requests
@@ -13,19 +15,18 @@ def flatten_json(y):
     def flatten(x, name=''):
         if isinstance(x, dict):
             for a in x:
-                flatten(x[a], name + a + '.')
+                flatten(x[a], f"{name}{a}_")
         elif isinstance(x, list):
-            i = 0
-            for a in x:
-                flatten(a, name + str(i) + '.')
-                i += 1
+            for i, a in enumerate(x):
+                flatten(a, f"{name}{i}_")
         else:
             out[name[:-1]] = x
             order.append(name[:-1])
+
     flatten(y)
     return out, order
 
-# Function to generate comparison results (ignoring case differences)
+# Function to generate comparison results
 def generate_comparison_results(json1, json2):
     flat_json1, order1 = flatten_json(json1)
     flat_json2, _ = flatten_json(json2)
@@ -37,7 +38,7 @@ def generate_comparison_results(json1, json2):
 
         # Perform case-insensitive comparison if both values are strings
         if isinstance(val1, str) and isinstance(val2, str):
-            match = (val1.lower() == val2.lower())
+            match = (val1.strip().lower() == val2.strip().lower())
         else:
             match = (val1 == val2)
 
@@ -46,9 +47,6 @@ def generate_comparison_results(json1, json2):
 
 # Function to generate a DataFrame for the comparison
 def generate_comparison_df(json1, json2, comparison_results):
-    """
-    Generate a DataFrame comparing two JSON objects.
-    """
     flat_json1, order1 = flatten_json(json1)
     flat_json2, _ = flatten_json(json2)
 
@@ -64,21 +62,17 @@ def generate_comparison_df(json1, json2, comparison_results):
 
 # Function to generate a DataFrame with only mismatched fields
 def generate_mismatch_df(json1, json2, comparison_results):
-    """
-    Generate a DataFrame showing only the mismatched fields between the two JSONs.
-    """
     flat_json1, order1 = flatten_json(json1)
     flat_json2, _ = flatten_json(json2)
 
     data = []
     for key in order1:
-        val1 = flat_json1.get(key, "N/A")
-        val2 = flat_json2.get(key, "N/A")
-        if comparison_results[key] == "✘":  # Only include mismatched fields
+        if comparison_results[key] == "✘":
+            val1 = flat_json1.get(key, "N/A")
+            val2 = flat_json2.get(key, "N/A")
             data.append([key, val1, val2])
 
-    # Create a DataFrame with only the mismatched fields
-    df = pd.DataFrame(data, columns=['Field', 'Result with Extra Accuracy', 'Result without Extra Accuracy'])
+    df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy'])
     return df
 
 # Function to send OCR request
