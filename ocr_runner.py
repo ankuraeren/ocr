@@ -1,13 +1,11 @@
-# ocr_runner.py
-
 import os
-import json
-import requests
-import time
-import pandas as pd
+import tempfile
+import shutil
 import streamlit as st
-from ocr_utils import send_request, generate_comparison_results, generate_comparison_df, generate_mismatch_df, flatten_json
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+from PIL import Image
+from PyPDF2 import PdfReader
+from ocr_utils import send_request, generate_comparison_results, generate_comparison_df, generate_mismatch_df
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 # Main OCR parser function
 def run_parser(parsers):
@@ -71,42 +69,42 @@ def run_parser(parsers):
     st.markdown("**Note:** Please upload an image or PDF file not exceeding **20MB**.")
 
     # File uploader with file size limit
-    uploaded_file = st.file_uploader(
-        "Choose an image or PDF file... (Limit 20MB per file)", 
+    uploaded_files = st.file_uploader(
+        "Choose image or PDF file(s)... (Limit 20MB per file)", 
         type=["jpg", "jpeg", "png", "pdf"], 
         accept_multiple_files=False
     )
     
-    if uploaded_file:
-        if uploaded_file.size > 20 * 1024 * 1024:  # 20 MB limit
+    if uploaded_files:
+        if uploaded_files.size > 20 * 1024 * 1024:  # 20 MB limit
             st.error("File size exceeds the 20 MB limit. Please upload a smaller file.")
             return
         try:
-            if uploaded_file.type == "application/pdf":
+            if uploaded_files.type == "application/pdf":
                 # Handle PDF files
                 temp_dir = tempfile.mkdtemp()
                 temp_dirs.append(temp_dir)
-                pdf_path = os.path.join(temp_dir, uploaded_file.name)
+                pdf_path = os.path.join(temp_dir, uploaded_files.name)
 
                 with open(pdf_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    f.write(uploaded_files.getbuffer())
 
                 # Display PDF filename
-                st.markdown(f"**Uploaded PDF:** {uploaded_file.name}")
+                st.markdown(f"**Uploaded PDF:** {uploaded_files.name}")
                 file_paths.append(pdf_path)
 
             else:
                 # Handle image files
-                image = Image.open(uploaded_file)
-                st.image(image, caption=uploaded_file.name, use_column_width=True)
+                image = Image.open(uploaded_files)
+                st.image(image, caption=uploaded_files.name, use_column_width=True)
                 temp_dir = tempfile.mkdtemp()
                 temp_dirs.append(temp_dir)
-                image_path = os.path.join(temp_dir, uploaded_file.name)
+                image_path = os.path.join(temp_dir, uploaded_files.name)
                 image.save(image_path)
                 file_paths.append(image_path)
 
         except Exception as e:
-            st.error(f"Error processing file {uploaded_file.name}: {e}")
+            st.error(f"Error processing file {uploaded_files.name}: {e}")
 
     # Run OCR button
     if st.button("Run OCR"):
@@ -169,80 +167,24 @@ def run_parser(parsers):
                 with col2:
                     st.error(f"Request without Extra Accuracy failed. Status code: {response_no_extra.status_code}")
 
+            # Generate comparison results
             if success_extra and success_no_extra:
-                # Generate comparison results
                 comparison_results = generate_comparison_results(response_json_extra, response_json_no_extra)
-                comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
-                comparison_table['Comparison'] = comparison_table['Comparison'].astype(str)  # Ensure it's string
 
                 # Display mismatched fields in a table
                 st.subheader("Mismatched Fields")
                 mismatch_df = generate_mismatch_df(response_json_extra, response_json_no_extra, comparison_results)
                 st.dataframe(mismatch_df)
 
-                # Display the comparison table using AgGrid with Tree Data
+                # Display the comparison table
                 st.subheader("Comparison Table")
-
-                # Prepare data for Tree Data
-                def prepare_tree_data(df):
-                    tree_data = []
-                    for _, row in df.iterrows():
-                        # Split the attribute into parts
-                        parts = row['Attribute'].split('_')
-                        current_level = tree_data
-                        for i, part in enumerate(parts):
-                            # Check if the part already exists
-                            existing = next((item for item in current_level if item['Attribute'] == part), None)
-                            if not existing:
-                                new_node = {'Attribute': part}
-                                if i == len(parts) - 1:
-                                    # Leaf node
-                                    new_node['Result with Extra Accuracy'] = row['Result with Extra Accuracy']
-                                    new_node['Result without Extra Accuracy'] = row['Result without Extra Accuracy']
-                                    new_node['Comparison'] = row['Comparison']
-                                else:
-                                    new_node['children'] = []
-                                current_level.append(new_node)
-                                existing = new_node
-                            current_level = existing.get('children', [])
-                    return tree_data
-
-                tree_data = prepare_tree_data(comparison_table)
-
-                # Define grid options
+                comparison_table = generate_comparison_df(response_json_extra, response_json_no_extra, comparison_results)
                 gb = GridOptionsBuilder.from_dataframe(comparison_table)
                 gb.configure_pagination(paginationAutoPageSize=True)
                 gb.configure_side_bar()
                 gb.configure_selection('single')
-
-                # Enable Tree Data
-                gb.configure_tree_data(column='Attribute', groupSelectsChildren=True)
-                gb.configure_default_column(groupable=True, value=True, enableRowGroup=True, tree=True)
-
-                # Add custom cell renderer for 'Comparison' column
-                comparison_renderer = JsCode("""
-                function(params) {
-                    if (params.value === '✔') {
-                        return '<span style="color: green;">✔</span>';
-                    } else {
-                        return '<span style="color: red;">✘</span>';
-                    }
-                }
-                """)
-
-                gb.configure_column("Comparison", header_name="Comparison", cellRenderer=comparison_renderer, sortable=True, filter=True)
-
                 grid_options = gb.build()
-
-                AgGrid(
-                    tree_data,
-                    gridOptions=grid_options,
-                    enable_enterprise_modules=True,
-                    height=600,
-                    width='100%',
-                    theme='streamlit',
-                    allow_unsafe_jscode=True  # Enable JavaScript
-                )
+                AgGrid(comparison_table, gridOptions=grid_options, height=500, theme='streamlit', enable_enterprise_modules=True)
 
                 # Display the full comparison JSON after the table
                 st.subheader("Comparison JSON")
@@ -250,6 +192,3 @@ def run_parser(parsers):
 
             else:
                 st.error("Comparison failed. One or both requests were unsuccessful.")
-        else:
-            st.error("Comparison failed. One or both requests were unsuccessful.")
-
