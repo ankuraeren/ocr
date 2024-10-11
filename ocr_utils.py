@@ -1,3 +1,5 @@
+# ocr_utils.py
+
 import os
 import json
 import requests
@@ -6,9 +8,8 @@ import pandas as pd
 import streamlit as st
 import logging
 
-# ocr_utils.py
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG for detailed logs
 logger = logging.getLogger(__name__)
 
 def flatten_json(y, separator='__', prefix=''):
@@ -37,7 +38,7 @@ def flatten_json(y, separator='__', prefix=''):
             if isinstance(item, dict):
                 flat.update(flatten_json(item, separator, f"{prefix}{i}{separator}"))
             else:
-                flat[f"{prefix}{i}"] = item
+                flat[f"{prefix}{separator}{i}"] = item
     else:
         flat[prefix] = y
 
@@ -49,39 +50,66 @@ def flatten_json(y, separator='__', prefix=''):
 
     return flat
 
-
-# Function to generate comparison results (ignoring case differences)
 def generate_comparison_results(json1, json2):
     """
     Generate comparison results by comparing two flattened JSON objects.
+    Handles both numerical and string comparisons.
     """
-    flat_json1, order1 = flatten_json(json1)
-    flat_json2, _ = flatten_json(json2)
+    flat_json1 = flatten_json(json1)
+    flat_json2 = flatten_json(json2)
+
+    all_keys = set(flat_json1.keys()).union(set(flat_json2.keys()))
 
     comparison_results = {}
-    for key in order1:
+    for key in all_keys:
         val1 = flat_json1.get(key, "N/A")
         val2 = flat_json2.get(key, "N/A")
 
-        # Convert all values to strings for consistent comparison
-        val1_str = str(val1).strip().lower() if val1 is not None else ""
-        val2_str = str(val2).strip().lower() if val2 is not None else ""
+        # Log the values being compared
+        logger.debug(f"Comparing key: {key}")
+        logger.debug(f"Value with Extra Accuracy: {val1}")
+        logger.debug(f"Value without Extra Accuracy: {val2}")
 
-        match = (val1_str == val2_str)
+        # Special handling for specific fields
+        if key.endswith("cheque_date"):
+            # Example: Ensure date formats are consistent
+            try:
+                from dateutil import parser
+                date1 = parser.parse(val1).date()
+                date2 = parser.parse(val2).date()
+                match = (date1 == date2)
+                logger.debug(f"Date comparison: {date1} == {date2} -> {match}")
+            except Exception as e:
+                logger.error(f"Error parsing dates for key {key}: {e}")
+                match = False
+        else:
+            # Handle numerical comparisons
+            try:
+                val1_num = float(val1)
+                val2_num = float(val2)
+                match = (val1_num == val2_num)
+                logger.debug(f"Numerical comparison: {val1_num} == {val2_num} -> {match}")
+            except (ValueError, TypeError):
+                # Fallback to string comparison
+                val1_str = str(val1).strip().lower() if val1 is not None else ""
+                val2_str = str(val2).strip().lower() if val2 is not None else ""
+                match = (val1_str == val2_str)
+                logger.debug(f"String comparison: '{val1_str}' == '{val2_str}' -> {match}")
+
         comparison_results[key] = "✔" if match else "✘"
-    
+
     return comparison_results
 
-# Function to generate a DataFrame for the comparison
 def generate_comparison_df(json1, json2, comparison_results):
     """
     Generate a DataFrame comparing two JSON objects.
     """
-    flat_json1, order1 = flatten_json(json1)
-    flat_json2, _ = flatten_json(json2)
+    flat_json1 = flatten_json(json1)
+    flat_json2 = flatten_json(json2)
 
     data = []
-    for key in order1:
+    all_keys = set(flat_json1.keys()).union(set(flat_json2.keys()))  # Union of keys from both JSONs
+    for key in all_keys:
         val1 = flat_json1.get(key, "N/A")
         val2 = flat_json2.get(key, "N/A")
         match = comparison_results.get(key, "✘")  # Default to mismatch if key not found
@@ -90,27 +118,29 @@ def generate_comparison_df(json1, json2, comparison_results):
     df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
     return df
 
-# Function to generate a DataFrame with only mismatched fields
 def generate_mismatch_df(json1, json2, comparison_results):
     """
     Generate a DataFrame showing only the mismatched fields between the two JSONs.
     """
-    flat_json1, order1 = flatten_json(json1)
-    flat_json2, _ = flatten_json(json2)
+    flat_json1 = flatten_json(json1)
+    flat_json2 = flatten_json(json2)
 
     data = []
-    for key in order1:
+    all_keys = set(flat_json1.keys()).union(set(flat_json2.keys()))
+    for key in all_keys:
         val1 = flat_json1.get(key, "N/A")
         val2 = flat_json2.get(key, "N/A")
-        if comparison_results[key] == "✘":  # Only include mismatched fields
-            data.append([key, val1, val2])
+        if comparison_results.get(key, "✘") == "✘":  # Only include mismatched fields
+            data.append([key, val1, val2, comparison_results.get(key, "✘")])
 
     # Create a DataFrame with only the mismatched fields
-    df = pd.DataFrame(data, columns=['Field', 'Result with Extra Accuracy', 'Result without Extra Accuracy'])
+    df = pd.DataFrame(data, columns=['Field', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
     return df
 
-# Function to send OCR request
 def send_request(image_paths, headers, form_data, extra_accuracy, API_ENDPOINT):
+    """
+    Send OCR request to the API endpoint with the given parameters.
+    """
     local_headers = headers.copy()
     local_form_data = form_data.copy()
 
