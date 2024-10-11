@@ -7,26 +7,27 @@ import streamlit as st
 
 # Function to flatten nested JSON
 def flatten_json(y):
-    out = {}
-    order = []
-
-    def flatten(x, name=''):
-        if isinstance(x, dict):
-            for a in x:
-                flatten(x[a], name + a + '.')
-        elif isinstance(x, list):
-            i = 0
-            for a in x:
-                flatten(a, name + str(i) + '.')
-                i += 1
-        else:
-            out[name[:-1]] = x
-            order.append(name[:-1])
-    flatten(y)
-    return out, order
+    """
+    Flatten a nested JSON object into a flat dictionary with keys representing the hierarchy.
+    Uses '__' as a separator for clarity.
+    """
+    if isinstance(y, list):
+        y = {f'list_{i}': item for i, item in enumerate(y)}
+    
+    flat = pd.json_normalize(y, sep='__').to_dict(orient='records')
+    
+    # Convert list of records to a single dictionary
+    # Assuming there's only one record after normalization
+    if flat:
+        return flat[0], list(flat[0].keys())
+    else:
+        return {}, []
 
 # Function to generate comparison results (ignoring case differences)
 def generate_comparison_results(json1, json2):
+    """
+    Generate comparison results by comparing two flattened JSON objects.
+    """
     flat_json1, order1 = flatten_json(json1)
     flat_json2, _ = flatten_json(json2)
 
@@ -35,13 +36,13 @@ def generate_comparison_results(json1, json2):
         val1 = flat_json1.get(key, "N/A")
         val2 = flat_json2.get(key, "N/A")
 
-        # Perform case-insensitive comparison if both values are strings
-        if isinstance(val1, str) and isinstance(val2, str):
-            match = (val1.lower() == val2.lower())
-        else:
-            match = (val1 == val2)
+        # Convert all values to strings for consistent comparison
+        val1_str = str(val1).strip().lower() if val1 is not None else ""
+        val2_str = str(val2).strip().lower() if val2 is not None else ""
 
+        match = (val1_str == val2_str)
         comparison_results[key] = "✔" if match else "✘"
+    
     return comparison_results
 
 # Function to generate a DataFrame for the comparison
@@ -56,7 +57,7 @@ def generate_comparison_df(json1, json2, comparison_results):
     for key in order1:
         val1 = flat_json1.get(key, "N/A")
         val2 = flat_json2.get(key, "N/A")
-        match = comparison_results[key]
+        match = comparison_results.get(key, "✘")  # Default to mismatch if key not found
         data.append([key, val1, val2, match])
 
     df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
