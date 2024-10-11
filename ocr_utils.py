@@ -4,24 +4,51 @@ import requests
 import time
 import pandas as pd
 import streamlit as st
+import logging
 
-# Function to flatten nested JSON
-def flatten_json(y):
+# ocr_utils.py
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def flatten_json(y, separator='__', prefix=''):
     """
-    Flatten a nested JSON object into a flat dictionary with keys representing the hierarchy.
+    Recursively flattens a nested JSON object into a flat dictionary.
     Uses '__' as a separator for clarity.
     """
-    if isinstance(y, list):
-        y = {f'list_{i}': item for i, item in enumerate(y)}
-    
-    flat = pd.json_normalize(y, sep='__').to_dict(orient='records')
-    
-    # Convert list of records to a single dictionary
-    # Assuming there's only one record after normalization
-    if flat:
-        return flat[0], list(flat[0].keys())
+    flat = {}
+    if isinstance(y, dict):
+        for key, value in y.items():
+            new_key = f"{prefix}{key}" if prefix else key
+            if isinstance(value, dict):
+                flat.update(flatten_json(value, separator, new_key + separator))
+            elif isinstance(value, list):
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        # Use 'Sr_No' as an identifier if available
+                        identifier = item.get('Sr_No', i)
+                        flat.update(flatten_json(item, separator, f"{new_key}{separator}{identifier}{separator}"))
+                    else:
+                        flat[f"{new_key}{separator}{i}"] = item
+            else:
+                flat[new_key] = value
+    elif isinstance(y, list):
+        for i, item in enumerate(y):
+            if isinstance(item, dict):
+                flat.update(flatten_json(item, separator, f"{prefix}{i}{separator}"))
+            else:
+                flat[f"{prefix}{i}"] = item
     else:
-        return {}, []
+        flat[prefix] = y
+
+    # Log the current state of the flattened JSON
+    if prefix == '':
+        logger.info("Flattened JSON Structure:")
+        for k, v in flat.items():
+            logger.info(f"{k}: {v}")
+
+    return flat
+
 
 # Function to generate comparison results (ignoring case differences)
 def generate_comparison_results(json1, json2):
