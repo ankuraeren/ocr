@@ -1,85 +1,123 @@
+import os
+import json
+import requests
+import time
+import pandas as pd
 import streamlit as st
-from github_utils import download_parsers_from_github, upload_parsers_to_github
-from parser_utils import add_new_parser, list_parsers
-# from ocr_runner import run_parser
 
-# Ensure session state is initialized
-if 'parsers' not in st.session_state:
-    st.session_state['parsers'] = {}
+# Function to flatten nested JSON
+def flatten_json(y):
+    out = {}
+    order = []
 
-def main():
-    # Set page config
-    st.set_page_config(page_title="FRACTO OCR Parser", layout="wide")
+    def flatten(x, name=''):
+        if isinstance(x, dict):
+            for a in x:
+                flatten(x[a], name + a + '.')
+        elif isinstance(x, list):
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + '.')
+                i += 1
+        else:
+            out[name[:-1]] = x
+            order.append(name[:-1])
+    flatten(y)
+    return out, order
 
-    # Add custom CSS for radio buttons
-    st.markdown("""
-        <style>
-        .stRadio [role=radiogroup] {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+# Function to generate comparison results (ignoring case differences)
+def generate_comparison_results(json1, json2):
+    flat_json1, order1 = flatten_json(json1)
+    flat_json2, _ = flatten_json(json2)
+
+    comparison_results = {}
+    for key in order1:
+        val1 = flat_json1.get(key, "N/A")
+        val2 = flat_json2.get(key, "N/A")
+
+        # Perform case-insensitive comparison if both values are strings
+        if isinstance(val1, str) and isinstance(val2, str):
+            match = (val1.lower() == val2.lower())
+        else:
+            match = (val1 == val2)
+
+        comparison_results[key] = "✔" if match else "✘"
+    return comparison_results
+
+# Function to generate a DataFrame for the comparison
+def generate_comparison_df(json1, json2, comparison_results):
+    """
+    Generate a DataFrame comparing two JSON objects.
+    """
+    flat_json1, order1 = flatten_json(json1)
+    flat_json2, _ = flatten_json(json2)
+
+    data = []
+    for key in order1:
+        val1 = flat_json1.get(key, "N/A")
+        val2 = flat_json2.get(key, "N/A")
+        match = comparison_results[key]
+        data.append([key, val1, val2, match])
+
+    df = pd.DataFrame(data, columns=['Attribute', 'Result with Extra Accuracy', 'Result without Extra Accuracy', 'Comparison'])
+    return df
+
+# Function to generate a DataFrame with only mismatched fields
+def generate_mismatch_df(json1, json2, comparison_results):
+    """
+    Generate a DataFrame showing only the mismatched fields between the two JSONs.
+    """
+    flat_json1, order1 = flatten_json(json1)
+    flat_json2, _ = flatten_json(json2)
+
+    data = []
+    for key in order1:
+        val1 = flat_json1.get(key, "N/A")
+        val2 = flat_json2.get(key, "N/A")
+        if comparison_results[key] == "✘":  # Only include mismatched fields
+            data.append([key, val1, val2])
+
+    # Create a DataFrame with only the mismatched fields
+    df = pd.DataFrame(data, columns=['Field', 'Result with Extra Accuracy', 'Result without Extra Accuracy'])
+    return df
+
+# Function to send OCR request
+def send_request(image_paths, headers, form_data, extra_accuracy, API_ENDPOINT):
+    local_headers = headers.copy()
+    local_form_data = form_data.copy()
+
+    if extra_accuracy:
+        local_form_data['extra_accuracy'] = 'true'
+
+    # List of files to upload
+    files = []
+    for image_path in image_paths:
+        _, file_ext = os.path.splitext(image_path.lower())
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.bmp': 'image/bmp',
+            '.gif': 'image/gif',
+            '.tiff': 'image/tiff',
+            '.pdf': 'application/pdf'
         }
-        div[role='radiogroup'] label div[data-testid='stMarkdownContainer'] {
-            font-size: 18px;
-            font-weight: bold;
-            color: #FFFFFF;
-        }
-        div[role='radiogroup'] label {
-            background-color: #2B2B2B;
-            padding: 10px 15px;
-            border-radius: 12px;
-            border: 1px solid #3B3B3B;
-            cursor: pointer;
-        }
-        div[role='radiogroup'] label:hover {
-            background-color: #474747;
-        }
-        div[role='radiogroup'] input[type='radio']:checked + label {
-            background-color: #FF5F5F;
-            border-color: #FF5F5F;
-        }
-        div[role='radiogroup'] input[type='radio']:checked + label div[data-testid='stMarkdownContainer'] {
-            color: #FFFFFF;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+        mime_type = mime_types.get(file_ext, 'application/octet-stream')
+        try:
+            files.append(('file', (os.path.basename(image_path), open(image_path, 'rb'), mime_type)))
+        except Exception as e:
+            st.error(f"Error opening file {image_path}: {e}")
+            return None, 0
 
-    # App title and sidebar options
-    st.title("📄 FRACTO OCR Parser Web App")
-    
-    st.sidebar.header("Navigation")
-    st.sidebar.markdown("""
-        <p>This app provides functionalities for:</p>
-        <ul>
-            <li>Add OCR parsers</li>
-            <li>List existing parsers</li>
-            <li>Run parsers on images</li>
-        </ul>
-    """, unsafe_allow_html=True)
-
-    # Radio button menu
-    menu = ["List Parsers", "Run Parser", "Add Parser"]
-    choice = st.sidebar.radio("Menu", menu)
-
-    # Ensure parsers are loaded once when the app starts
-    if 'loaded' not in st.session_state:
-        download_parsers_from_github()  # This will also call load_parsers internally
-        st.session_state.loaded = True
-
-    # Menu options
-    if choice == "Add Parser":
-        add_new_parser()
-    elif choice == "List Parsers":
-        list_parsers()
-    elif choice == "Run Parser":
-        run_parser(st.session_state['parsers'])
-
-    st.sidebar.header("GitHub Actions")
-    if st.sidebar.button("Download Parsers"):
-        download_parsers_from_github()
-
-    if st.sidebar.button("Update Parsers File"):
-        upload_parsers_to_github()
-
-if __name__ == "__main__":
-    main()
+    try:
+        start_time = time.time()
+        response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=120)
+        time_taken = time.time() - start_time
+        return response, time_taken
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error in OCR request: {e}")
+        return None, 0
+    finally:
+        # Cleanup files
+        for _, file_tuple in files:
+            file_tuple[1].close()
