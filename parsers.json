@@ -96,5 +96,12 @@
         "extra_accuracy": false,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Hala Mobility - Electricity Bill Parser": {
+        "api_key": "HAlamv0-sfjk121b-86e1-04a9971123",
+        "parser_app_id": "Halabfd123onihbj",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
