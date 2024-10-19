@@ -103,5 +103,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Goeffortless Invoice Parser - Updated": {
+        "api_key": "Goeffortless0-sfjk121b-86ef-04ad876bf2fc",
+        "parser_app_id": "EFFINVitp013423",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
