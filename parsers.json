@@ -117,5 +117,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Equal Salary Slip Parser": {
+        "api_key": "Equal00173-sfj988jkkd993-31a04a9971123",
+        "parser_app_id": "Equal21sanchqt10",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
