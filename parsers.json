@@ -152,5 +152,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Equal Invoice Parser Test": {
+        "api_key": "Stream14gnhj00173-sfj98-ddfgs3-31a04a9971123",
+        "parser_app_id": "Equal21sevinc13q",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
