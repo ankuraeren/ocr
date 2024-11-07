@@ -159,5 +159,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Odex Statement Parser": {
+        "api_key": "Stream14gnhj00173-sfj98-ddfgs3-31a04a9971123",
+        "parser_app_id": "odexgl12334s2455",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
