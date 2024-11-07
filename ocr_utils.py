@@ -169,7 +169,7 @@ def send_request(image_paths, headers, form_data, extra_accuracy, API_ENDPOINT):
 
     try:
         start_time = time.time()
-        response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=120)
+        response = requests.post(API_ENDPOINT, headers=local_headers, data=local_form_data, files=files if files else None, timeout=1200)
         time_taken = time.time() - start_time
         return response, time_taken
     except requests.exceptions.RequestException as e:
