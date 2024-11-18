@@ -166,5 +166,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Finaleap - Technical valuation / Reports": {
+        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
+        "parser_app_id": "FinlTchbuold7814",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
