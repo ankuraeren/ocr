@@ -180,5 +180,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Zoop Insurance Parser": {
+        "api_key": "Stream14gnhj00173-sfj98-ddfgs3-31a04a9971123",
+        "parser_app_id": "QRjnsjqak23n123n",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
