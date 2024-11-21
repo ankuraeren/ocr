@@ -187,5 +187,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Finaleap - Legal scrutiny report": {
+        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
+        "parser_app_id": "FinlLSR78jbf312d",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
