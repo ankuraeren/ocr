@@ -194,5 +194,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Turno Parser Electricity": {
+        "api_key": "TUR-TUR-BD2B3A-FVB7V0-XG9HTKDQ",
+        "parser_app_id": "as1chjbfd123onih",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
