@@ -201,5 +201,12 @@
         "extra_accuracy": true,
         "expected_response": "",
         "sample_curl": ""
+    },
+    "Navata Hire Letters  - Testing Page": {
+        "api_key": "5d262446-4cfa-408b-86ef-04ad876bf2fc",
+        "parser_app_id": "Navhire10982n4jp",
+        "extra_accuracy": true,
+        "expected_response": "",
+        "sample_curl": ""
     }
 }
